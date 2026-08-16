@@ -64,3 +64,9 @@ Format:
 **Chosen:** Create empty `__init__.py` files under extract/resolve/data/analytics/narrate; do not create prompts/ yet.
 **Reason:** Matches the issue carve-out (skeleton only) and SPEC §5.12 layout without touching prompt content or SPEC.
 **Reversible:** yes.
+
+## 2026-08-16 — Agent PR automation needs Pull requests write on the PAT
+**Ambiguity:** Branch push succeeded; `gh pr create` returned 403 Resource not accessible by personal access token.
+**Chosen:** Document required fine-grained scopes (Contents, Workflows, Pull requests, Issues, Metadata) and add `pr-opener` subagent + Cursor `open-pr` skill so agents retry after Om updates the token.
+**Reason:** Branch protection + agent PRs are load-bearing; missing PR scope blocks the whole loop.
+**Reversible:** yes — scopes can be narrowed later if a human opens every PR.
