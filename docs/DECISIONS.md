@@ -41,6 +41,12 @@ Format:
 **Reason:** Skipped jobs still report and satisfy required checks; path filters can leave checks pending forever.
 **Reversible:** yes — remove the `if:` once web/ and evals/ land.
 
+## 2026-08-16 — CORRECTION: hashFiles only works on steps, not job-level if
+**Ambiguity:** GitHub rejected the workflow: `Unrecognized function: 'hashFiles'` on job-level `if:` (lines 52/72/91). Jobs never started → required checks stayed "Expected — Waiting".
+**Chosen:** Keep jobs always scheduled (so required checks report). Move presence guards to **step-level** `if: hashFiles(...)` with an explicit no-op success step when absent. Still no workflow `paths:` filter.
+**Reason:** `hashFiles` is documented for step `if` only; job-level use invalidates the whole workflow file.
+**Reversible:** yes.
+
 ## 2026-08-16 — Privacy pytest exit code 5 is success during scaffold
 **Ambiguity:** CI runs `pytest -m privacy` before any privacy tests exist (exit code 5 = no tests collected).
 **Chosen:** Treat exit codes 0 and 5 as pass in the privacy CI step.
