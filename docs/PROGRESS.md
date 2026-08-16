@@ -21,3 +21,9 @@ Format:
 **Tests:** Structural verify for `.claude`, `.cursor`, `.github`, `docs/SPEC.md`.
 **Assumptions logged:** repo name Portfolio-Scan; contracts promoted before branch protection.
 **Not done:** Anthropic prepaid key + $15 cap; Claude Code contract check; Lane B smoke PR; design-token guardrail PR (needs web/ scaffold).
+
+## 2026-08-16 — Issue #1: api scaffold + CI guards
+**Built:** `api/` package (FastAPI `/health`), empty `px/{extract,resolve,data,analytics,narrate}` packages, `tests/test_health.py`, Makefile (`install`/`test`/`eval`/`lint`/`dev`), `.env.example`, CI job-level skips for missing web/evals, privacy exit-5 pass, pip-audit via pyproject install.
+**Tests:** `make test` — 1 passed (`test_health_returns_ok`); `make lint` — ruff clean; `make eval` — skipped (no evals/); privacy marker — exit 5 treated as pass in CI.
+**Assumptions logged:** CI job-level if; privacy exit 5; pyproject vs requirements.txt; uvicorn/httpx; empty package carve-out.
+**Not done:** web/ scaffold (issue #2); evals harness; real privacy tests; Anthropic `.env` key.

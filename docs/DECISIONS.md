@@ -34,3 +34,45 @@ Format:
 **Chosen:** Copy CLAUDE.md, AGENTS.md, SETUP.md, .claude, .cursor, .github, docs/*, scripts/* into Portfolio-Scan and push to main, then enable protection.
 **Reason:** SETUP order — contracts on main before agents open PRs.
 **Reversible:** yes.
+
+## 2026-08-16 — Scaffold CI skips frontend/eval jobs via job-level if
+**Ambiguity:** Required checks frontend / design-tokens / security must report; web/ and evals/ do not exist yet.
+**Chosen:** Job-level `if: hashFiles(...) != ''` on frontend, design-tokens, and extraction-eval. No workflow `paths:` filter.
+**Reason:** Skipped jobs still report and satisfy required checks; path filters can leave checks pending forever.
+**Reversible:** yes — remove the `if:` once web/ and evals/ land.
+
+## 2026-08-16 — CORRECTION: hashFiles only works on steps, not job-level if
+**Ambiguity:** GitHub rejected the workflow: `Unrecognized function: 'hashFiles'` on job-level `if:` (lines 52/72/91). Jobs never started → required checks stayed "Expected — Waiting".
+**Chosen:** Keep jobs always scheduled (so required checks report). Move presence guards to **step-level** `if: hashFiles(...)` with an explicit no-op success step when absent. Still no workflow `paths:` filter.
+**Reason:** `hashFiles` is documented for step `if` only; job-level use invalidates the whole workflow file.
+**Reversible:** yes.
+
+## 2026-08-16 — Privacy pytest exit code 5 is success during scaffold
+**Ambiguity:** CI runs `pytest -m privacy` before any privacy tests exist (exit code 5 = no tests collected).
+**Chosen:** Treat exit codes 0 and 5 as pass in the privacy CI step.
+**Reason:** Keeps the step wired without inventing placeholder privacy tests.
+**Reversible:** yes — remove the exit-5 branch once real privacy tests exist.
+
+## 2026-08-16 — Dependencies live in api/pyproject.toml, not requirements.txt
+**Ambiguity:** Original CI pip-audit used `api/requirements.txt`, which the scaffold does not create.
+**Chosen:** Editable install from `api[dev]`, then `pip-audit` against the environment (soft-fail `|| true` retained).
+**Reason:** Single source of truth in pyproject; no duplicate lock file yet.
+**Reversible:** yes — add a frozen requirements export later if desired.
+
+## 2026-08-16 — uvicorn and httpx added beyond the minimal FastAPI/pydantic list
+**Ambiguity:** Issue #1 named FastAPI + pydantic (+dev pytest/ruff/bandit) but `make dev` and TestClient need a server and httpx.
+**Chosen:** Add `uvicorn[standard]` as a runtime dependency and `httpx` under `[dev]`.
+**Reason:** `make dev` and `tests/test_health.py` would not work otherwise; logged per CLAUDE.md dependency rule.
+**Reversible:** yes — swap ASGI server later with a logged reason.
+
+## 2026-08-16 — Empty package dirs under analytics/extract/narrate with no prompts yet
+**Ambiguity:** AGENTS.md forbids cloud agents from analytics and prompt paths; issue #1 asks for empty `__init__.py` package dirs only.
+**Chosen:** Create empty `__init__.py` files under extract/resolve/data/analytics/narrate; do not create prompts/ yet.
+**Reason:** Matches the issue carve-out (skeleton only) and SPEC §5.12 layout without touching prompt content or SPEC.
+**Reversible:** yes.
+
+## 2026-08-16 — Agent PR automation needs Pull requests write on the PAT
+**Ambiguity:** Branch push succeeded; `gh pr create` returned 403 Resource not accessible by personal access token.
+**Chosen:** Document required fine-grained scopes (Contents, Workflows, Pull requests, Issues, Metadata) and add `pr-opener` subagent + Cursor `open-pr` skill so agents retry after Om updates the token.
+**Reason:** Branch protection + agent PRs are load-bearing; missing PR scope blocks the whole loop.
+**Reversible:** yes — scopes can be narrowed later if a human opens every PR.
