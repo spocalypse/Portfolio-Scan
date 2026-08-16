@@ -27,3 +27,9 @@ Format:
 **Tests:** `make test` — 1 passed (`test_health_returns_ok`); `make lint` — ruff clean; `make eval` — skipped (no evals/); privacy marker — exit 5 treated as pass in CI.
 **Assumptions logged:** CI job-level if; privacy exit 5; pyproject vs requirements.txt; uvicorn/httpx; empty package carve-out.
 **Not done:** web/ scaffold (issue #2); evals harness; real privacy tests; Anthropic `.env` key.
+
+## 2026-08-16 — Issue #2: Next.js scaffold + design tokens
+**Built:** `web/` via create-next-app (App Router, TypeScript, Tailwind, ESLint, no src, `@/*`, npm). `web/styles/tokens.css` with SPEC §5.11 palette + five type steps. Inter + IBM Plex Mono via `next/font/google`. Blank void page showing type scale + empty-state invite.
+**Tests:** `cd web && npm run build` — pass; `npx tsc --noEmit` — pass; `npm run lint` — pass; `make lint` — ruff + web tsc/eslint pass.
+**Assumptions logged:** next/font/google self-host; keep web/AGENTS.md; type step px sizes.
+**Not done:** Fixture-driven UI (Day 1); upload/redaction; wiring to live API.

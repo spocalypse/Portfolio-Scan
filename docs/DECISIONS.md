@@ -76,3 +76,21 @@ Format:
 **Chosen:** Document required fine-grained scopes (Contents, Workflows, Pull requests, Issues, Metadata) and add `pr-opener` subagent + Cursor `open-pr` skill so agents retry after Om updates the token.
 **Reason:** Branch protection + agent PRs are load-bearing; missing PR scope blocks the whole loop.
 **Reversible:** yes — scopes can be narrowed later if a human opens every PR.
+
+## 2026-08-16 — next/font/google for Inter + IBM Plex Mono (build-time self-host)
+**Ambiguity:** SPEC requires self-hosted fonts; issue allows next/font if logged.
+**Chosen:** Use `next/font/google` for Inter (body) and IBM Plex Mono (numerals). Next downloads and self-hosts at build time; no runtime Google Fonts CDN.
+**Reason:** Matches create-next-app App Router defaults and AGENTS.md “fonts are self-hosted” without vendoring font files in-repo.
+**Reversible:** yes — switch to `next/font/local` with files under `web/public/fonts/` if offline builds become a constraint.
+
+## 2026-08-16 — Keep create-next-app web/AGENTS.md + web/CLAUDE.md
+**Ambiguity:** Root already has AGENTS.md / CLAUDE.md; create-next-app 16 writes Next-specific agent notes under `web/`.
+**Chosen:** Commit `web/AGENTS.md` and `web/CLAUDE.md` as generated. Repo operating contract remains root `AGENTS.md` / `CLAUDE.md`.
+**Reason:** `next dev` re-creates them if removed; committing avoids perpetual dirty tree.
+**Reversible:** yes — delete later if Next stops auto-writing them.
+
+## 2026-08-16 — Type scale steps sized on 8px rhythm
+**Ambiguity:** SPEC §5.11 requires five type steps but does not prescribe px sizes.
+**Chosen:** `--step-1` 12px, `--step-2` 14px, `--step-3` 16px, `--step-4` 24px, `--step-5` 40px.
+**Reason:** Eyebrow → body → instrument value hierarchy on an 8px grid; no sixth step.
+**Reversible:** yes — adjust px values in `tokens.css` only.
