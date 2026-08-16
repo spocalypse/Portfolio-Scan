@@ -1,0 +1,21 @@
+---
+description: Core operating rules for Portfolio X-Ray. Applies to every file.
+alwaysApply: true
+---
+
+Source of truth for all math, schemas, and design tokens: `docs/SPEC.md`.
+Full engineering contract: `CLAUDE.md`. Cloud/background agent rules: `AGENTS.md`.
+
+Non-negotiable:
+
+1. The LLM never does arithmetic. Vision model → structure. Narrative model → English from
+   a computed metrics object. Everything numeric between them is deterministic Python
+   under test.
+2. Never loosen a test tolerance to make a test pass. A failing golden-portfolio assertion
+   means the math is wrong. Fix the math or escalate.
+3. No dollar amounts past the extraction boundary. Downstream carries `{ticker, weight}`.
+   No schema, log line, or UI state may hold a currency value.
+4. Screenshots are in-memory only. Never written to disk, cache, temp file, or log.
+5. Log assumptions to `docs/DECISIONS.md` and continue. Do not stop to ask except for the
+   escalations listed in `CLAUDE.md`.
+6. No new dependency without a logged reason.

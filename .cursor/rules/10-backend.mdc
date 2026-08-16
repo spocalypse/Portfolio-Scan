@@ -1,0 +1,18 @@
+---
+description: Python / FastAPI conventions
+globs: ["api/**/*.py", "tests/**/*.py", "evals/**/*.py"]
+alwaysApply: false
+---
+
+- Python 3.11, full type hints, `ruff` clean. Pydantic models for every boundary.
+- `api/src/px/analytics/` is pure: no network, no file I/O, no env reads, no logging.
+  Pure functions in, dataclasses out. Anything impure belongs in `data/` or the route layer.
+- Returns are simple daily returns. Annualization factor 252, applied exactly once.
+- Every metric implemented gets its golden-portfolio assertion from SPEC §5.8 in the same
+  commit. Code without its test is not done.
+- Logging is allowlist-only: `request_id`, `duration_ms`, `model_used`, `row_count`,
+  `error_code`. Never log request bodies, holdings, image bytes, or exception context that
+  could contain them.
+- Anthropic calls: Haiku first for extraction, escalate to Sonnet only on low confidence or
+  schema failure. Always parse into a Pydantic model — never consume raw model text.
+- Secrets from environment only. Never a default API key, never a key in a test fixture.

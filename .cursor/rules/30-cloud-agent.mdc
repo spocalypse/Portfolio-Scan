@@ -1,0 +1,15 @@
+---
+description: Boundaries for background and cloud agents
+alwaysApply: true
+---
+
+If you are running as a background or cloud agent, you open pull requests. You never merge
+and never push to `main`.
+
+Never modify: `api/src/px/analytics/**`, `api/src/px/extract/prompts/**`,
+`api/src/px/narrate/prompts/**`, `fixtures/metrics.sample.json`, `docs/SPEC.md`.
+A PR touching those paths is closed unread. If a task appears to require it, open an issue
+labelled `blocked-needs-human` and move to the next ready task.
+
+One issue, one PR. CI green or convert to draft. Append decisions to `docs/DECISIONS.md`
+in the same PR.

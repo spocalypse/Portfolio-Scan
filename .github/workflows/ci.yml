@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# CI never holds an Anthropic API key. Every check below runs offline against
+# recorded fixtures. If a check needs a live model call, it does not belong in CI.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — lint, tests, golden portfolios
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "api[dev]"
+      - name: Lint
+        run: ruff check api tests evals
+      - name: Unit and golden-portfolio tests
+        run: pytest tests -v --tb=short
+      - name: Privacy boundary (D9)
+        run: pytest tests -m privacy -v
+
+  extraction-eval:
+    name: Extraction eval (offline fixtures)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e "api[dev]"
+      - name: Run eval
+        run: python evals/run_eval.py --offline --fail-under-f1 0.95 --max-weight-mae 1.0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: extraction-scorecard
+          path: evals/history/
+
+  frontend:
+    name: Frontend — types, lint, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+
+  design-tokens:
+    name: Design tokens and currency ban
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No stray hex colors outside tokens.css
+        run: |
+          if grep -rEn --include='*.tsx' --include='*.ts' --include='*.css' \
+             --exclude='tokens.css' '#[0-9a-fA-F]{3,8}\b' web/; then
+            echo "::error::Hex color outside tokens.css. Use a design token (SPEC 5.11)."
+            exit 1
+          fi
+      - name: No border-radius or box-shadow
+        run: |
+          if grep -rEn --include='*.tsx' --include='*.css' \
+             '(border-radius|box-shadow|rounded-|shadow-)' web/; then
+            echo "::error::border-radius / box-shadow are banned (SPEC 5.11)."
+            exit 1
+          fi
+      - name: No currency in the frontend
+        run: |
+          if grep -rEn --include='*.tsx' --include='*.ts' \
+             '(currency|\$\{?[0-9]|USD|toLocaleString.*currency)' web/; then
+            echo "::error::Frontend receives weights only. No currency (SPEC 6.2)."
+            exit 1
+          fi
+
+  security:
+    name: Secrets and dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python dependency audit
+        run: |
+          pip install pip-audit
+          pip-audit -r api/requirements.txt || true
+      - name: Static analysis
+        run: |
+          pip install bandit
+          bandit -r api/src -ll
+      - name: No real screenshots committed
+        run: |
+          if [ -f evals/labels.json ] && ! grep -q '"synthetic": *true' evals/labels.json; then
+            echo "::error::evals/labels.json must declare synthetic: true. Real account screenshots must never enter this repo."
+            exit 1
+          fi
