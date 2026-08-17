@@ -94,3 +94,153 @@ Format:
 **Chosen:** `--step-1` 12px, `--step-2` 14px, `--step-3` 16px, `--step-4` 24px, `--step-5` 40px.
 **Reason:** Eyebrow → body → instrument value hierarchy on an 8px grid; no sixth step.
 **Reversible:** yes — adjust px values in `tokens.css` only.
+
+## 2026-08-16 — Issue #3 branch accidentally forked from a concurrent web/ commit
+**Ambiguity:** N/A — this is a process note, not a spec ambiguity. A concurrent session
+shared this working directory and checked out `web/issue-2-next-tokens`, committing
+`web: scaffold Next.js and design tokens` on it between two of my own git checks. My
+`git checkout -b contract/issue-3-freeze-api-schema` ran while that branch was checked
+out, so it silently forked from there instead of `main`.
+**Chosen:** Caught it before any commit existed on the new branch (confirmed via
+`git reflog`), deleted and recreated the branch cleanly off the now-fast-forwarded
+`main` (which had meanwhile also gained the merged web/issue-2 PR on `origin/main`).
+**Reason:** A schema-only PR must not carry an unrelated Lane B commit in its history.
+**Reversible:** n/a — corrected before any commit; no history rewritten on a shared ref.
+
+## 2026-08-16 — `fixtures/metrics.sample.json` holds the full `AnalyzeResponse`, not bare `metrics{}`
+**Ambiguity:** SPEC §5.10 says only "`metrics` shape is fixed ... committed as
+`fixtures/metrics.sample.json`," without saying whether the file's JSON root is the bare
+`metrics` object or the full response envelope.
+**Chosen:** The fixture's top level is `{metrics, findings, meta}` (`AnalyzeResponse`).
+**Reason:** Lane B needs `findings` and `meta` to build the whole readout page against a
+single fixture; the SPEC sentence names the artifact for the metrics shape it freezes, not
+a literal restriction on the file's JSON root.
+**Reversible:** yes — would require a fixture format bump and updating any Lane B code
+that reads the file, logged here so that's a visible, deliberate change if it happens.
+
+## 2026-08-16 — Pydantic schema package layout: `api/src/px/schemas/{common,extract,metrics,analyze,samples}.py`
+**Ambiguity:** SPEC doesn't say where the frozen-contract models live; CLAUDE.md's lane
+table doesn't call out a schemas path.
+**Chosen:** New `api/src/px/schemas/` package, split one file per route plus a `common.py`
+base and a `metrics.py` holding all of M1–M6 (the biggest, most load-bearing file, named to
+mirror SPEC §5.5's `m1_`–`m6_` subsections for direct traceability).
+**Reason:** Isolates the actual frozen contract (`metrics.py`) as the obvious single file to
+diff when a change to it is proposed — which CLAUDE.md treats as an escalation, not an edit.
+**Reversible:** yes — pure file reorganization, imports would need updating.
+
+## 2026-08-16 — `SectorExposure` unifies M1 capital weight and M3 sector risk contribution
+**Ambiguity:** SPEC's M1 (sector capital weight) and M3 (risk contribution aggregated by
+sector) are described in separate paragraphs; nothing dictates whether they share a model.
+**Chosen:** One `SectorExposure{sector, capital_weight, risk_contribution_pct}` object per
+sector, not two separate lists the frontend joins by sector-name string.
+**Reason:** SPEC §5.11's signature divergence bar needs both values for the same sector
+side by side; a string-keyed join across two arrays is fragile and works against a frozen,
+unambiguous shape.
+**Reversible:** yes — would require a fixture/model split and Lane B rework.
+
+## 2026-08-16 — `M4.naive_position_count` kept distinct from `M1.effective_position_count`
+**Ambiguity:** SPEC has two different "effective count" ideas — M1's `1/HHI`
+(weight-concentration based) and M4's ENB (eigenvalue/correlation based), with M4's naive
+count reported "beside" ENB — risk of collapsing onto one field name.
+**Chosen:** Three distinct fields: `M1.effective_position_count`, `M4.naive_position_count`,
+`M4.effective_number_of_bets`. `Metrics` enforces `naive_position_count ==
+len(m1_weights.position_weights)` via a cross-model validator.
+**Reason:** These measure different things; conflating them would silently lose one of
+SPEC's two concentration metrics.
+**Reversible:** yes.
+
+## 2026-08-16 — `FactorLoading.significant` computed deterministically and shipped as data
+**Ambiguity:** SPEC's `|t|≥2` significance rule for M5 is stated as a narrative-layer rubric
+("only loadings with |t|≥2 may be described as tilts"), not explicitly as a metrics field.
+**Chosen:** `significant: bool` is a first-class field on `FactorLoading`, enforced by a
+Pydantic validator (`significant == (abs(t_stat) >= 2)` exactly, checked at construction).
+**Reason:** CLAUDE.md rule 1 — the LLM never does arithmetic, including thresholding — so
+this classification must be deterministic Python under test, not left to A2's prompt.
+**Reversible:** yes — would become a derived/computed property instead of a stored field.
+
+## 2026-08-16 — No invented staleness threshold for M2 R² or M6 ETF snapshot age
+**Ambiguity:** §6.7 implies low-R² betas and stale ETF snapshots should surface as flags,
+but SPEC gives no numeric threshold for either, unlike M5's exact `|t|≥2` rule.
+**Chosen:** Expose raw `m2_beta.r_squared` and `m6_etf_look_through.snapshot_date` only; no
+`low_r_squared` or `etf_snapshot_stale` boolean invented in this schema.
+**Reason:** Avoids baking an arbitrary, unlogged-by-SPEC threshold into the frozen contract;
+`meta.price_data_stale` stays narrowly scoped to §5.4's literal cache-fallback behavior.
+**Reversible:** yes — add a derived flag later once a threshold is specified.
+
+## 2026-08-16 — `Severity` constrained to a 2-value enum (`info`, `notable`)
+**Ambiguity:** SPEC §5.6 gives `Finding.severity` as a free field; §6.7 separately requires
+severity "capped at neutral-factual" with "no alarm, no moralising."
+**Chosen:** `Severity(StrEnum)` with exactly `info`/`notable` — no `warning`/`critical`/etc.
+**Reason:** Enforces the no-alarm rule at the type level instead of trusting A2's prompt
+discipline alone; `--alert` red stays reserved for structured hard flags elsewhere (excluded
+holdings, stale data), not for finding severity.
+**Reversible:** yes — widen the enum later with a logged reason if a real need appears.
+
+## 2026-08-16 — Global `extra="forbid"` via a shared `PXBaseModel`
+**Ambiguity:** CLAUDE.md rule 3 requires no currency field downstream of extraction; SPEC
+doesn't prescribe how that's structurally enforced.
+**Chosen:** Every model in `px/schemas/` inherits `PXBaseModel(BaseModel)` with
+`model_config = ConfigDict(extra="forbid")`, not just `Holding`/`AnalyzeRequest`.
+**Reason:** Fails closed on unexpected fields everywhere, not only at the one boundary
+model — defense in depth for the privacy boundary and an early signal of contract drift.
+**Reversible:** yes.
+
+## 2026-08-16 — `/api/samples` maps to 3 of SPEC §5.8's 6 golden portfolios
+**Ambiguity:** SPEC §5.10 says `/api/samples` returns "3 canned portfolios" without naming
+them.
+**Chosen:** 100% SPY; 50/50 SPY/SHV; equal-weight 10 mega-cap tech (AAPL, MSFT, GOOGL, AMZN,
+NVDA, META, TSLA, AVGO, ORCL, CRM — SPEC only says "10 mega-cap tech," tickers are my
+choice). The other 2 golden cases (SPY+VOO overlap, 30-day-IPO exclusion) stay test-only
+fixtures for the future `analytics/` suite, not exposed via the route.
+**Reason:** Chosen for demo value; gives free reuse once `analytics/` lands — these become
+literal golden-portfolio test inputs for 3 of the 6 §5.8 assertions.
+**Reversible:** yes — swap tickers or portfolios without a schema change.
+
+## 2026-08-16 — `fixtures/metrics.sample.json` is script-generated, never auto-regenerated
+**Ambiguity:** Issue #3 doesn't specify how the fixture file should be produced or kept
+in sync with the models.
+**Chosen:** `scripts/build_metrics_fixture.py` builds one validated `AnalyzeResponse`
+instance and writes it via `model_dump_json`. Run manually; not wired into `make test` or
+`make lint`.
+**Reason:** Generating from a validated instance guarantees the fixture is numerically
+self-consistent (Σw=1, ΣRC%=1, etc.), not just schema-valid; auto-regenerating on every
+test run would silently defeat "this is the frozen contract, changing it is an escalation."
+**Reversible:** yes — hand-edit the JSON later if the generator becomes a burden, logged if
+so.
+
+## 2026-08-16 — `ExtractResponse` carries §5.2's full field list, not just §5.10's abbreviation
+**Ambiguity:** §5.10's route diagram abbreviates `/api/extract`'s response to
+`{rows[], warnings[], model_used}`; §5.2 separately lists `total_value` and
+`brokerage_guess` as part of the same response.
+**Chosen:** `ExtractResponse` includes `total_value` and `brokerage_guess` alongside
+`rows`/`warnings`/`model_used`.
+**Reason:** §5.2 is the fuller, more specific spec for this route; treating it as
+authoritative over the diagram's shorthand avoids losing fields issue #4's extraction
+agent will need.
+**Reversible:** yes.
+
+## 2026-08-16 — GICS sector list hardcoded as a `Literal`; weights are fractions in [0,1] throughout
+**Ambiguity:** SPEC references "GICS sector" and "weight" without enumerating the sector
+taxonomy or stating a units convention.
+**Chosen:** `GicsSector = Literal[...]` over the 11 standard GICS sectors. Every
+weight/percentage-like field across the schema tree (capital weight, RC%, overlap %,
+r_squared, etc.) is a fraction in [0,1], never pre-multiplied by 100.
+**Reason:** The 11-sector GICS list is stable and low-risk to hardcode now; a uniform units
+convention avoids a silent mismatch between, e.g., `overlap_pct` and `weight` that a
+frontend could format inconsistently.
+**Reversible:** yes — GICS list can be extended; units convention would need a coordinated
+change across schema and Lane B if ever revisited.
+
+## 2026-08-16 — Cross-field invariants (Σw=1, ΣRC%=1, etc.) enforced by Pydantic validators, not only by tests
+**Ambiguity:** SPEC §5.8 says of ΣRC%=1 "assert this in a test"; it doesn't say whether the
+model itself should also refuse to construct an inconsistent instance.
+**Chosen:** `model_validator(mode="after")` on `M1Weights`, `M3RiskContribution`,
+`FactorLoading`, `M5FactorTilts`, and `Metrics` enforce the sum-to-one, `effective_position_
+count≈1/hhi`, `naive_position_count` consistency, and `significant==(|t|≥2)` invariants at
+construction time, at the SPEC-mandated tolerances (1e-6 for the sums).
+**Reason:** Stricter than the issue literally requires, but construction-time enforcement
+is an earlier, stronger version of "assert this in a test" — any future code building a
+`Metrics` instance (real or test) gets the same guardrail for free. Per CLAUDE.md rule 2,
+these tolerances must never be loosened; a future fixture that can't satisfy one is an
+escalation, not a widened assertion.
+**Reversible:** yes — would need to move the checks into test-only assertions instead.
