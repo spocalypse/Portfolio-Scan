@@ -148,3 +148,37 @@ contract — a contract change is an escalation, not this issue's call to make).
 issue builds `/api/analyze` (#19/#21). No interactive disambiguation UI/endpoint for the
 `ambiguous` case — logged as a deferred contract question, not silently dropped.
 
+## 2026-08-17 — Issue #11: analytics M1 weights, sectors, HHI
+**Built:** `api/src/px/analytics/{m1.py,sectors.py}` — pure, no I/O, no network.
+`sectors.py`'s `map_to_gics_sector` translates yfinance's Yahoo-taxonomy sector strings
+onto the 11 canonical GICS sectors (verified live: a clean 1:1 bijection); `None`/
+unrecognized input maps to `None`, never a guess. `m1.py`: `renormalize()` restores
+`Σ capital_weight == 1.0` over whatever holdings survived resolver/data-layer exclusion
+(the renormalization deferred from issue #5); `compute_hhi`/`compute_effective_position_
+count` implement `HHI = Σw²` / `1/HHI`; `aggregate_sector_weights` groups by GICS
+sector with ETFs and anything unmapped kept in an explicit `unclassified_weight`
+rather than forced into a real sector bucket; `top_sector_concentration` returns the
+top 3, tiebroken deterministically by sector name; `compute_m1` orchestrates all of the
+above into an `M1Result`. Outputs are this module's own dataclasses, not the frozen
+`schemas.metrics` models — `SectorExposure` there needs M3's risk_contribution_pct too,
+so assembling the actual frozen contract is deferred to a later integration issue.
+**Tests:** `make test` — 103 passed (was 89 on this branch's base, pre-#8-merge; #8's
+17 tests land separately once that PR merges). New: `test_m1.py` (11 tests — 100% SPY,
+50/50 SPY/SHV, equal-weight 10 mega-cap tech, Σw=1 invariant, renormalization after
+exclusion incl. zero-total `ValueError`, sector aggregation with unclassified, top-3
+ordering + tiebreak, HHI/effective-count inverse relationship) and `test_sectors.py`
+(4 tests — full Yahoo→GICS coverage, known mappings, None-in/None-out, unrecognized
+input never guessed). `make lint` — ruff clean (api, tests, scripts) + web tsc/eslint
+pass. `make eval` — unaffected no-op.
+**Assumptions logged:** 4 entries in `docs/DECISIONS.md` dated 2026-08-17 — M1's own
+dataclass boundary (decoupled from both the frozen schema and from resolve/data's
+types) and why the actual `Metrics` assembly is necessarily a later step; the verified
+Yahoo→GICS sector mapping; ETFs/unmapped sectors reported as explicit
+`unclassified_weight` rather than forced into a GICS bucket; renormalization landing in
+M1 as previously flagged in issue #5's decision log.
+**Not done:** No assembly into the frozen `M1Weights`/`SectorExposure`/`Metrics`
+Pydantic objects — blocked on M3 existing too (`SectorExposure` needs both), lands with
+a later integration issue. M6 ETF look-through (redistributing ETF weight into
+constituent companies' real sectors) doesn't exist yet, so `unclassified_weight` is the
+honest current state for any directly-held ETF, not a bug.
+
