@@ -473,3 +473,66 @@ require route wiring, matching the same deferred-wiring pattern already used for
 `/api/analyze` itself (issues #19/#21).
 **Reversible:** yes — open a `blocked-needs-human` issue proposing the contract change
 if interactive disambiguation becomes a priority.
+
+## 2026-08-17 — M1 outputs its own dataclasses, not the frozen `schemas.metrics` models
+**Ambiguity:** `schemas.metrics.SectorExposure` (from issue #3) requires both
+`capital_weight` (M1) **and** `risk_contribution_pct` (M3) on the same object — so no
+single Mx issue can construct the frozen `M1Weights`/`Metrics` contract alone; something
+has to assemble M1+M2+M3+... together later.
+**Chosen:** `api/src/px/analytics/m1.py` defines its own `HoldingInput`/`Position`/
+`SectorCapitalWeight`/`M1Result` dataclasses, decoupled from both the frozen schema and
+from `resolve`/`data`'s own dataclasses (`ResolvedHolding`, `TickerMetadata`) — a plain
+`HoldingInput{ticker, weight, sector, is_etf}` is the pure boundary in.
+**Reason:** CLAUDE.md rule 8 says analytics/ is "pure functions in, dataclasses out" —
+literally dataclasses, not the Pydantic contract. Assembling the actual frozen
+`Metrics` object is necessarily a later integration step (once M2–M6 exist), same
+deferred-assembly pattern already used for `resolve/`'s and `extract/`'s internal
+types. Decoupling from `resolve`/`data`'s specific dataclasses too keeps M1 fully
+unit-testable with plain literals, no cross-package object construction needed in tests.
+**Reversible:** yes — a later wiring issue adapts `ResolvedHolding`+`TickerMetadata` →
+`HoldingInput` → `M1Result` → the frozen `M1Weights`/`SectorExposure` (needs M3 too).
+
+## 2026-08-17 — Yahoo Finance's sector taxonomy is a clean 1:1 rename onto GICS
+**Ambiguity:** `data/`'s yfinance-backed `TickerMetadata.sector` uses Yahoo's own
+sector labels (e.g. "Technology", "Consumer Cyclical"), not the `GicsSector` Literal's
+canonical GICS names (e.g. "Information Technology", "Consumer Discretionary") M1 needs.
+**Chosen:** Verified live against 11 real tickers spanning all 11 Yahoo sector
+categories (`api/src/px/analytics/sectors.py`'s `YAHOO_TO_GICS`) — every Yahoo sector
+maps to exactly one GICS sector, a complete bijection, not a lossy collapse.
+`map_to_gics_sector(None)` and any unrecognized string both return `None` rather than
+guessing.
+**Reason:** Checked empirically rather than assumed, same discipline as the
+`yfinance==1.6.0` pin in issue #8 — Yahoo's categories turn out to already match GICS's
+11 sectors one-for-one, just under different names.
+**Reversible:** yes.
+
+## 2026-08-17 — ETFs (and anything sector-unmapped) are reported as `unclassified_weight`, never forced into a GICS bucket
+**Ambiguity:** `GicsSector` is a closed 11-value Literal (frozen contract) with no
+"N/A"/"Diversified" option, but ETFs held directly (not yet run through M6's
+look-through) have no single GICS sector of their own — yfinance itself returns
+`sector=None` for them (confirmed for SPY).
+**Chosen:** `M1Result.unclassified_weight` is a separate, explicit field alongside
+`sector_weights` — an ETF's capital weight is never assigned to a real sector bucket
+just to satisfy the enum. `Σ sector_weights + unclassified_weight == 1.0` is the
+invariant M1 actually holds (tested), not `Σ sector_weights == 1.0` alone.
+**Reason:** Rule 1's "never guess" spirit applied to sector classification, not just
+ticker extraction — forcing SPY into, say, "Financials" would be actively misleading in
+the narrative layer later. This also sidesteps needing M6's ETF look-through
+(a separate, later issue) as a prerequisite for M1 to run at all.
+**Reversible:** yes — once M6 look-through exists, a later integration step could
+instead compute sector exposure on the look-through-redistributed view; SPEC doesn't
+say which view M1 is meant to use, and this is the simpler one to build first.
+
+## 2026-08-17 — Renormalization after upstream exclusion happens in M1, as
+flagged in issue #5
+**Ambiguity:** Already logged as an open question when `resolve/`'s resolver
+deliberately did *not* renormalize weights after excluding unresolvable tickers.
+**Chosen:** `renormalize()` in `m1.py` divides each surviving holding's weight by the
+survivors' total, restoring `Σ capital_weight == 1.0` over whatever made it through
+resolver + data-layer exclusions. Raises `ValueError` if the total is zero (a fully
+unresolvable/excluded portfolio) — a genuinely invalid input state for M1, not a
+"never crash" boundary case like a single short-history ticker.
+**Reason:** `schemas.metrics.M1Weights`'s own validator requires this sum to hold;
+somewhere has to do it, and M1 is the natural point since it's the first stage that
+actually needs weights to sum to 1 for HHI/effective-position-count to mean anything.
+**Reversible:** yes.
