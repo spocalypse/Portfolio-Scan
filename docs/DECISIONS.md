@@ -591,3 +591,23 @@ anticipate — matches the spirit of "no crash," extended from the single docume
 to the batch as a whole.
 **Reversible:** yes — narrow the caught exception type later with a logged reason if
 this proves too permissive.
+
+## 2026-08-16 — UI revamp Phase 1 stays inside §5.11; SVG charts, no chart lib
+**Ambiguity:** Om asked for a multiphase futuristic/professional UI with graphs and
+tables; [apple-design-skill](https://github.com/dickwu/apple-design-skill) HIG
+principles conflict with Liquid Glass if applied literally, and SPEC freezes tokens.
+**Chosen:** Execute the instrument-panel vision harder — primary finding hero, CountUp
+numerals, elevated DivergenceBar, hand-rolled `SectorDualBarChart` SVG, `HoldingsTable`
+HTML — all token colors only. No Recharts/Chart.js. Max content width 1040px. Plan and
+skill live at `docs/UI-REVAMP-PLAN.md` and `.cursor/skills/instrument-panel-ui/`.
+**Reason:** SPEC §5.11 already is the “futuristic professional” brief; the readout was
+thin, not wrong. New tokens/radius/shadows would be an escalation.
+**Reversible:** yes — Phase 2+ can deepen charts; contract changes still escalate.
+
+## 2026-08-16 — CountUp defers first setState via rAF to satisfy react-hooks lint
+**Ambiguity:** `react-hooks/set-state-in-effect` rejects synchronous setState in
+`useEffect` for the reduced-motion short-circuit.
+**Chosen:** Schedule animation/start behind `requestAnimationFrame` so setState runs in
+the frame callback; reduced-motion still jumps to the final value on that first frame.
+**Reason:** Keeps SPEC motion + a11y without disabling the lint rule.
+**Reversible:** yes.

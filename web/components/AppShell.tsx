@@ -66,7 +66,7 @@ export function AppShell({ analyzeFixture, extractSample }: AppShellProps) {
   return (
     <main
       style={{
-        maxWidth: "880px",
+        maxWidth: "1040px",
         margin: "0 auto",
         padding: "48px 16px 64px",
         display: "flex",
