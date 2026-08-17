@@ -244,3 +244,21 @@ is an earlier, stronger version of "assert this in a test" — any future code b
 these tolerances must never be loosened; a future fixture that can't satisfy one is an
 escalation, not a widened assertion.
 **Reversible:** yes — would need to move the checks into test-only assertions instead.
+
+## 2026-08-16 — Static readout loads fixture via fs from repo root
+**Ambiguity:** Lane B must build against `fixtures/metrics.sample.json` at repo root; Next.js package root is `web/`, and duplicating the JSON would drift from the frozen contract.
+**Chosen:** Server component calls `readFileSync` on `../fixtures/metrics.sample.json` relative to `web/` cwd (`loadSampleAnalyze`). Types in `web/lib/types.ts` mirror the fixture shape only — no invented fields.
+**Reason:** Single source of truth for the Day-1 contract; no copy under `web/` that can go stale; no live API.
+**Reversible:** yes — switch to a path alias / `externalDir` import or a generated `web/` copy if fs-at-build becomes awkward in deploy.
+
+## 2026-08-16 — Defer numeral count-up motion on the static readout
+**Ambiguity:** SPEC §5.11 asks for one orchestrated load sequence (numerals count up once); issue #7 acceptance is field coverage + design-tokens CI.
+**Chosen:** Ship a static instrument layout (divergence bars, findings, all fixture fields) without count-up animation.
+**Reason:** Motion needs a client island and is not in the issue acceptance bar; keep the first product-looking screen simple. `prefers-reduced-motion` work lands with motion.
+**Reversible:** yes — add a small client `CountUp` later without schema changes.
+
+## 2026-08-16 — Un-ignore web/lib/ against root Python lib/ gitignore
+**Ambiguity:** Root `.gitignore` (Python template) has bare `lib/`, which also ignores `web/lib/` where the readout helpers live.
+**Chosen:** Add `!web/lib/` exception; keep helpers at `web/lib/{types,format,load-fixture}.ts`.
+**Reason:** Matches Next/App Router convention (`@/lib/...`); narrower than renaming the folder.
+**Reversible:** yes — rename to `web/readout/` and drop the exception if preferred.

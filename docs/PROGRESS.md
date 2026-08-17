@@ -63,3 +63,9 @@ uniform [0,1] weight units; construction-time invariant enforcement.
 **Not done:** FastAPI route wiring (issues #4, #19, #21); the full D9 privacy suite with a
 live-run log grep (issue #9) — this issue's privacy test is a structural/model-level proof
 only, not a substitute.
+
+## 2026-08-16 — Issue #7: web static readout against metrics fixture
+**Built:** Replaced the Day-0 type-scale void page with a full instrument readout driven by `fixtures/metrics.sample.json` (no API). Sections: headline instruments (ENB, beta, vol, HHI), findings list, sector capital-vs-risk divergence bars, top concentration, position weights, risk contribution table, factor tilts, ETF look-through, excluded holdings (alert), meta strip, educational disclaimer. Helpers under `web/lib/` + `DivergenceBar`.
+**Tests:** `cd web && npm run build` pass; `npx tsc --noEmit` pass; `npm run lint` pass; design-token greps (no stray hex / radius-shadow / currency) pass against `web/` source.
+**Assumptions logged:** fs load of root fixture; defer count-up motion.
+**Not done:** Live API wiring; upload/redaction; numeral count-up motion; client confirm-and-edit table.
