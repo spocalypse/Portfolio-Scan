@@ -109,3 +109,42 @@ issue's tests all mock the Anthropic client per CI's offline-only policy, so ext
 Resolver-side ticker whitelist validation (issue #5) is separate and unbuilt; A1's
 "never infer an unseen ticker" rule is prompt-level only, as SPEC frames it.
 
+## 2026-08-16 — Issue #5: US symbol resolver
+**Built:** `api/src/px/resolve/{table.py,resolver.py}`. `table.py` is the sole I/O
+boundary — `load_symbol_table()` reads `fixtures/symbol_table.parquet` via pandas into a
+plain `dict[str, SymbolEntry]`. `resolver.py` is pure (no I/O, no network):
+`resolve_holdings(holdings, table)` resolves each `{ticker, weight}` against the table —
+exact match wins outright; failing that, share-class separator variants (`.`/`-`/`/`,
+deliberately excluding bare concatenation, which false-positive-matched unrelated real
+tickers like BRKR/BRKU against the live table) collapse brokerage-specific renderings
+(`BRK-B` → `BRK.B`) to one candidate, or flag `ambiguous` with the full candidate list
+when ≥2 distinct tickers match (e.g. bare `BRK` between real `BRK.A`/`BRK.B`) — never a
+guess. A small explicit non-US suffix list (`.TO`, `.L`, `.AX`, …) gets its own
+`non_us_suffix` reason ahead of table lookup. Everything else unresolved is
+`not_found`. Weights pass through unchanged, no renormalization. `scripts/
+build_symbol_table.py` fetches NASDAQ Trader's `nasdaqlisted.txt` + `otherlisted.txt`
+(stdlib `urllib.request`, no new dependency for the fetch) and writes the checked-in
+`fixtures/symbol_table.parquet` — run once for real this session: 13,111 rows (5,586
+NASDAQ, 5,612 flagged ETF across both files), zero cross-file ticker collisions.
+**Tests:** `make test` — 89 passed (was 70): `test_resolver.py` (12 tests, synthetic
+tables — exact match, case/whitespace, ETF flag and weight passthrough, share-class
+variant resolution, 2-way and 3-way ambiguity, exact-match short-circuiting, non-US
+suffix, mixed-batch ordering) and `test_symbol_table.py` (7 tests, real checked-in
+fixture, offline — includes the two collision cases named in the issue: bare `BRK`
+ambiguous between real `BRK.A`/`BRK.B`, and real `GOOG`/`GOOGL` proven to never
+cross-match). `make lint` — ruff clean (api, tests, scripts) + web tsc/eslint pass.
+`make eval` — unaffected no-op, `evals/` still owned by issue #6.
+**Assumptions logged:** 7 entries in `docs/DECISIONS.md` dated 2026-08-16 — new deps
+(`pandas`, `pyarrow`); `nasdaqlisted.txt`+`otherlisted.txt` together as the literal
+SPEC-named source, unfiltered beyond `Test Issue`; script-generated non-auto-
+regenerated fixture (same precedent as the metrics fixture); the separator-only (no
+concatenation) ambiguity mechanism and why, with the BRK/GOOG reasoning; no weight
+renormalization (deferred to M1, issue #11); resolver's own exclusion-reason vocabulary
+and its documented mapping onto the frozen `schemas.metrics.ExcludedHolding.reason`;
+ambiguous-row dropdown UI wiring deferred (no resolve endpoint in the frozen §5.10
+contract — a contract change is an escalation, not this issue's call to make).
+**Not done:** No `/api/analyze` route wiring — this issue is scoped to the pure
+`resolve/` module only, per its own acceptance criteria; wiring lands with whichever
+issue builds `/api/analyze` (#19/#21). No interactive disambiguation UI/endpoint for the
+`ambiguous` case — logged as a deferred contract question, not silently dropped.
+

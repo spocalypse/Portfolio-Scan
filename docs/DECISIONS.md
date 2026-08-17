@@ -355,3 +355,121 @@ inspects the actual `LogRecord`.
 **Reason:** Establishes the allowlist pattern in code, not just in SPEC prose, before any
 other module starts logging.
 **Reversible:** yes — extend the allowlist later with a logged reason.
+
+## 2026-08-16 — `pandas` and `pyarrow` added as new dependencies (issue #5)
+**Ambiguity:** SPEC §5.3 says the symbol table is "cached as parquet"; SPEC §5.9 lists
+`pandas` in the backend stack, but neither was ever added to `api/pyproject.toml`.
+**Chosen:** Add both to `[project].dependencies`.
+**Reason:** `pandas` is the SPEC-named data-handling library; `pyarrow` is its standard
+parquet engine (pandas has no default parquet engine of its own) — required to read/
+write `fixtures/symbol_table.parquet` at all. Same "pre-approved by SPEC, just not yet
+declared" situation as `anthropic` was for issue #4.
+**Reversible:** yes.
+
+## 2026-08-16 — `nasdaqlisted.txt` + `otherlisted.txt` together are "the NASDAQ/NYSE
+listings" SPEC §5.3 names
+**Ambiguity:** SPEC says "local symbol table from public NASDAQ/NYSE listings" without
+naming a specific source or file.
+**Chosen:** NASDAQ Trader's public, unauthenticated symbol directory —
+`nasdaqtrader.com/dynamic/SymDir/{nasdaqlisted,otherlisted}.txt` — fetched via
+`scripts/build_symbol_table.py` (stdlib `urllib.request`, no new dependency for the
+fetch itself) and written to `fixtures/symbol_table.parquet`: 13,111 rows (5,586
+NASDAQ-listed, 5,612 flagged ETF across both files), confirmed zero ticker collisions
+between the two source files. `otherlisted.txt` is taken in full (NYSE + NYSE American +
+NYSE Arca + Cboe BZX + IEX), not filtered down to `Exchange=='N'` only — this pair of
+files is the standard, complete public US-listed-securities directory these two
+canonical filenames refer to, and SPEC's own examples elsewhere (§2 "US-listed equities
+and ETFs", D2 "US-only") point at full US coverage, not literally NYSE-the-single-
+exchange. Rows with `Test Issue == Y` are dropped (synthetic test symbols like ZZZZ);
+no other filtering (rights/warrants/units/preferred shares stay in — SPEC doesn't ask
+to exclude them, and rule 6 says take the simpler reading).
+**Reason:** Network access to this exact domain was verified reachable before choosing
+it; the file is free, unauthenticated, and is literally what "NASDAQ/NYSE listings"
+means in practice for anyone building this kind of table.
+**Reversible:** yes.
+
+## 2026-08-16 — `fixtures/symbol_table.parquet` is script-generated, never
+auto-regenerated
+**Ambiguity:** Same question as `fixtures/metrics.sample.json` in issue #3 — how the
+symbol table should be produced and kept in sync.
+**Chosen:** `scripts/build_symbol_table.py` fetches, parses, and writes the parquet file
+once; it is checked in and never re-run by `make test`/`make lint`/CI.
+**Reason:** Identical reasoning to the metrics-fixture precedent: a table that changes
+silently on every CI run would defeat determinism and make "resolves/doesn't resolve"
+regressions invisible. Re-running the script to refresh delistings/new listings is a
+deliberate, logged action.
+**Reversible:** yes — re-run the script and commit the new file with a logged reason
+whenever a refresh is wanted.
+
+## 2026-08-16 — Resolver ambiguity: share-class separator variants only, never bare
+concatenation
+**Ambiguity:** SPEC §5.3 says ambiguous rows must "surface a dropdown... rather than
+auto-resolving," without specifying what counts as ambiguous or how to detect it
+against a real ~13k-row table.
+**Chosen:** `resolve_holdings` in `api/src/px/resolve/resolver.py`: (1) exact
+ticker match always wins outright, no further checks; (2) failing that, for a ticker
+shaped like `BASE` + separator (`.`/`-`/`/`) + one letter, or a bare `BASE` alone, try
+the other separators from `{'.', '-', '/'}` — deliberately **excluding** the
+no-separator/concatenated form. Collect the distinct real table hits: exactly one →
+resolve to it (handles a brokerage rendering `BRK.B` as `BRK-B`); two or more → excluded
+with `reason="ambiguous"` and the full candidate list, never a guess (e.g. a bare `BRK`
+is genuinely ambiguous between the real `BRK.A`/`BRK.B`, confirmed against the checked-
+in fixture — see `tests/test_symbol_table.py`). Concatenation (no separator at all) was
+tried first and reverted: against the real table, `"BRK" + <any letter>` false-
+positive-matched unrelated real tickers (`BRKR`, `BRKU`, `BRKC`, `BRKL`, `BRKW`, …) —
+it degenerates into blunt prefix matching, not share-class detection.
+**Reason:** This is why `GOOG`/`GOOGL` (Alphabet's two real, fully independent tickers,
+not a base+class-letter pair under this scheme) must never cross-match: `GOOG` and
+`GOOGL` both hit the exact-match path directly and never reach variant scanning at all.
+Covered explicitly in both `tests/test_resolver.py` (synthetic) and
+`tests/test_symbol_table.py` (real fixture) per the acceptance criterion's "unit tests
+for collision cases."
+**Reversible:** yes — reintroduce concatenation with a name-similarity or confidence
+gate later if eval data shows it's needed, logged if so.
+
+## 2026-08-16 — Resolver does not renormalize weights after exclusion
+**Ambiguity:** SPEC doesn't say whether the Resolver should renormalize the remaining
+holdings' weights after excluding some.
+**Chosen:** `ResolvedHolding.weight` is passed through unchanged from the input
+`Holding.weight`.
+**Reason:** `AnalyzeRequest`/`Holding` has no cross-holding sum-to-1 invariant enforced
+today (only a per-field `[0,1]` bound); SPEC's M1 `w_i = mv_i / Σ mv` formula is the
+Quant Engine's job (issue #11), which will naturally compute weights over whatever
+holdings it actually receives. Renormalizing twice (once here, again in M1) would be
+the exact double-counting bug `quant-verifier` is told to hunt for.
+**Reversible:** yes — move renormalization here instead with a logged reason if M1's
+implementation ends up wanting resolver-normalized input.
+
+## 2026-08-16 — Resolver's exclusion reasons map onto `schemas.metrics.ExcludedHolding`
+but aren't that type
+**Ambiguity:** `api/src/px/schemas/metrics.py` already defines a frozen
+`ExcludedHolding{ticker, reason: Literal["non_us_ticker","insufficient_price_history",
+"resolution_failure"], detail}` from issue #3. The resolver needs its own richer
+exclusion type (candidates list, raw ticker) but must not silently diverge from that
+vocabulary.
+**Chosen:** `resolve.ExcludedHolding.reason` is its own `Literal["not_found",
+"ambiguous","non_us_suffix"]` — a different, resolver-internal type, not the frozen
+schema. Documented mapping for whichever issue wires `resolve_holdings` into
+`/api/analyze`: `not_found`/`ambiguous` → `resolution_failure` (with `raw_ticker`/
+`candidates` folded into the frozen model's free-text `detail`); `non_us_suffix` →
+`non_us_ticker`.
+**Reason:** Keeps `resolve/` free of a dependency on the frozen contract schema (it
+isn't itself part of §5.10's frozen API) while giving future wiring work an
+already-decided, unambiguous mapping instead of re-litigating it.
+**Reversible:** yes.
+
+## 2026-08-16 — Ambiguous-row dropdown UI is out of scope for issue #5
+**Ambiguity:** SPEC §5.3's "surface a dropdown in the confirm UI rather than
+auto-resolving" implies an interactive disambiguation flow, but the frozen §5.10 API
+contract has no dedicated resolve endpoint — only `/api/extract`, `/api/analyze`,
+`/api/samples`.
+**Chosen:** Build only the pure detection logic (`ExcludedHolding.reason="ambiguous"`
+with a `candidates` list) in this issue. No new route, no UI wiring.
+**Reason:** Adding a resolve-specific endpoint would be a change to the frozen API
+contract — CLAUDE.md's escalation protocol, not something to add unilaterally inside a
+`lane-a` issue scoped to "US symbol table and disambiguation" logic. Issue #5's own
+acceptance criteria (exclude-and-report-by-name, unit tests for collisions) don't
+require route wiring, matching the same deferred-wiring pattern already used for
+`/api/analyze` itself (issues #19/#21).
+**Reversible:** yes — open a `blocked-needs-human` issue proposing the contract change
+if interactive disambiguation becomes a priority.
