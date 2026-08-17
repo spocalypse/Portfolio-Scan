@@ -148,3 +148,22 @@ contract — a contract change is an escalation, not this issue's call to make).
 issue builds `/api/analyze` (#19/#21). No interactive disambiguation UI/endpoint for the
 `ambiguous` case — logged as a deferred contract question, not silently dropped.
 
+## 2026-08-16 — Issue #10: client-side redaction, EXIF strip, downscale
+**Built:** `web/lib/image-prepare.ts` (MIME sniff matching API magic bytes, 10 MB
+ceiling, 40e6 decoded-pixel guard, long-edge 1600 downscale, `burnRedactionRects` that
+writes opaque black into the RGBA buffer, `prepareScreenshot` canvas re-encode to JPEG).
+`web/components/RedactStage.tsx` — drag black boxes in natural-image coordinates, undo/
+clear, Continue prepares the blob in memory. `AppShell` stage order is now
+upload → redact → confirm → readout. Upload copy no longer stubs #10. Frontend CI Node
+22 + `npm test`; `make lint` runs the same image-prepare unit tests.
+**Tests:** `make test` — 89 passed (api unchanged). `cd web && npm test` — 6 passed,
+including byte-level assertion that burned rect samples are `(0,0,0,255)` and neighbors
+unchanged. `make lint` — ruff + tsc + eslint + web unit tests clean. `make eval` —
+unaffected no-op.
+**Assumptions logged:** 3 entries in `docs/DECISIONS.md` dated 2026-08-16 — canvas JPEG
+with no new npm deps; Node strip-types tests + CI Node 22; redact as its own AppShell
+stage (prepare always runs; live extract still #21).
+**Not done:** Live `POST /api/extract` upload of the prepared blob (#21). Server-side
+EXIF/downscale (still client-only per SPEC §6.3). Interactive resolve UI for ambiguous
+tickers.
+
