@@ -509,3 +509,85 @@ before the mock extract path. Live `/api/extract` wiring remains #21.
 **Reason:** Matches SPEC §6.3 order (strip/downscale/redact/validate before anything
 leaves the browser) and keeps the privacy control demonstrable as its own screen.
 **Reversible:** yes.
+
+## 2026-08-17 — `yfinance==1.6.0` pinned exactly (issue #8)
+**Ambiguity:** SPEC §5.9 names `yfinance` and §5.4 warns "pin the version; it breaks
+without warning," without naming a specific version. Latest at build time is 1.6.0, a
+major-version jump from the long-stable 0.2.x line — a real risk given the SPEC's own
+warning about silent breakage.
+**Chosen:** Verified 1.6.0's actual behavior directly against the live API before
+committing to it (not assumed from memory): `Ticker(t).history(period="3y",
+auto_adjust=True)` returns an already-adjusted `Close` column on a tz-aware
+`DatetimeIndex`; `.info` has `sector`/`industry` (both `None` for ETFs, e.g. SPY); an
+unresolvable ticker returns an **empty DataFrame**, not an exception. Pinned to exactly
+`yfinance==1.6.0` (no `>=`) on that verified shape.
+**Reason:** Given the tool to check empirically rather than guess, verifying beats
+assuming — especially right after SPEC explicitly flags this exact library as prone to
+undocumented breaking changes across versions.
+**Reversible:** yes — bump with a logged reason (and a re-verification pass) if a newer
+version is needed later.
+
+## 2026-08-17 — Price/metadata cache is stdlib SQLite, not parquet, and gitignored
+**Ambiguity:** SPEC §5.4 says "SQLite or parquet keyed by (ticker, date)"; issue #5 had
+already used parquet for the symbol table, so the choice wasn't pre-set for issue #8.
+**Chosen:** `api/src/px/data/cache.py` uses stdlib `sqlite3` (no new dependency) with
+three tables — `prices(ticker, date, adj_close)`, `metadata(ticker, sector, industry)`,
+`fetch_log(ticker, last_fetched_date)` enforcing "at most once per day." The DB file
+lives at `.cache/price_cache.sqlite3`, matched by the pre-existing bare `.cache` line in
+`.gitignore` (confirmed via `git check-ignore`) — never committed, unlike
+`fixtures/symbol_table.parquet`.
+**Reason:** The symbol table is a static, deliberately-versioned snapshot (parquet:
+write-once, read-many, diffable). The price cache is the opposite — a live, per-ticker,
+per-day-incrementing store — which is exactly what a keyed row-store handles naturally
+(`INSERT OR REPLACE` upserts, indexed point lookups) versus rewriting a whole parquet
+file on every fetch. It's also a runtime artifact, not a frozen fixture, so it shouldn't
+be checked in at all.
+**Reversible:** yes — swap to parquet-per-ticker with a logged reason if SQLite becomes
+a bottleneck (unlikely at this data volume).
+
+## 2026-08-17 — Retry/backoff is hand-rolled, not a new dependency
+**Ambiguity:** SPEC §5.4 says "retry with backoff" without naming a library.
+**Chosen:** `loader.py`'s `_fetch_with_retry` is a plain loop: up to
+`DEFAULT_MAX_ATTEMPTS=3` attempts, exponential sleep
+(`backoff_seconds * 2**attempt`) between them, both the attempt count and the sleep
+function (`sleep_fn`) injectable so tests run instantly with zero real sleep.
+**Reason:** Three attempts with exponential backoff is a handful of lines; pulling in
+`tenacity` or similar for this would be a dependency with no functionality this
+project actually needs beyond what's already written, against CLAUDE.md's "no new
+dependency without a logged reason."
+**Reversible:** yes — swap to a library later with a logged reason if retry needs grow
+more elaborate (jitter, per-exception policies, etc.).
+
+## 2026-08-17 — Total-fetch-failure fallback and the 250-day guard are two separate,
+independently-testable steps
+**Ambiguity:** SPEC §5.4 bundles "retry with backoff; on total failure fall back to
+cache and mark stale" with the 250-day minimum-history exclusion rule in the same
+paragraph, but doesn't say whether they're one mechanism or two.
+**Chosen:** `fetch_ticker` (I/O: cache + retryable network fetch, always returns a
+`FetchedTicker`, possibly with zero prices, and a `stale` flag) is fully separate from
+`partition_by_history` (pure: `len(prices) >= 250` → included, else excluded with
+`reason="insufficient_price_history"` and the actual count in `detail`). An
+unresolvable ticker with no prior cache naturally flows through as a zero-price
+`FetchedTicker` and gets excluded by the history guard — no special-casing, no crash,
+confirmed against the real API (`ZZZNOPEXYZ` → 0 rows → excluded, not raised).
+**Reason:** Same layering as resolve/'s `table.py`/`resolver.py` split (I/O boundary vs.
+pure decision logic) — each half is unit-testable in isolation, and "no crash on a
+missing/short-history ticker" falls out of the design rather than needing a guard
+clause.
+**Reversible:** yes.
+
+## 2026-08-17 — `load_tickers` catches per-ticker exceptions so one bad ticker can't
+crash a batch
+**Ambiguity:** SPEC's "no crash" language is stated for the short-history case
+specifically; it doesn't say what happens if an unexpected exception (not a caught
+network-retry failure) occurs while processing one ticker in a batch of many.
+**Chosen:** `load_tickers` wraps each `fetch_ticker` call in a broad
+`except Exception`, converting any unexpected per-ticker failure into a zero-price,
+`stale=True` `FetchedTicker` (which the 250-day guard then excludes) rather than
+letting it abort the whole batch.
+**Reason:** A portfolio of 20 holdings should not fail entirely because one ticker's
+metadata call raised something `_fetch_with_retry`'s narrower exception handling didn't
+anticipate — matches the spirit of "no crash," extended from the single documented case
+to the batch as a whole.
+**Reversible:** yes — narrow the caught exception type later with a logged reason if
+this proves too permissive.

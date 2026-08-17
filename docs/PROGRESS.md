@@ -167,3 +167,45 @@ stage (prepare always runs; live extract still #21).
 EXIF/downscale (still client-only per SPEC §6.3). Interactive resolve UI for ambiguous
 tickers.
 
+## 2026-08-17 — Issue #8: yfinance data layer with cache and history guard
+**Built:** `api/src/px/data/{cache.py,source.py,loader.py}`. `cache.py` is the sole I/O
+boundary — stdlib `sqlite3` (no new dependency) at `.cache/price_cache.sqlite3`
+(gitignored), three tables: `prices(ticker, date, adj_close)`,
+`metadata(ticker, sector, industry)`, `fetch_log(ticker, last_fetched_date)` enforcing
+"fetched at most once per day." `source.py` wraps `yfinance==1.6.0` behind a `PriceSource`
+protocol (verified live against the real API before writing it: `history(period="3y",
+auto_adjust=True)` gives an already-adjusted `Close` column; `.info` sector/industry are
+`None` for ETFs; an unresolvable ticker returns an empty DataFrame, not an exception).
+`loader.py` is the orchestration layer, split into an I/O half and a pure half like
+`resolve/`'s `table.py`/`resolver.py`: `fetch_ticker` checks the once-per-day cache
+first, else retries the network fetch up to 3× with hand-rolled exponential backoff
+(`sleep_fn` injectable for instant tests), and on total failure falls back to whatever
+is cached with `stale=True`; `partition_by_history` is a separate pure function
+excluding any ticker with fewer than 250 trading days (`reason=
+"insufficient_price_history"`, actual count in `detail`) — an unresolvable ticker with
+no prior cache flows through as zero prices and gets excluded here, never crashes.
+**Tests:** `make test` — 106 passed (was 89): `test_data_cache.py` (9 tests — round-
+trip, upsert-replaces, once-per-day marking, per-ticker isolation) and
+`test_data_loader.py` (10 tests — fresh fetch, second-fetch-same-day cache hit
+confirmed via call count, next-day refetch, retry-then-succeed with backoff values
+asserted, total-failure-falls-back-to-cache-stale, total-failure-no-cache-returns-empty-
+no-crash, batch never raises even with a pathological ticker, 250-day boundary
+inclusive/exclusive). `make lint` — ruff clean (api, tests, scripts) + web tsc/eslint
+pass. `make eval` — unaffected no-op. Manual smoke check against the live API (not part
+of the suite): `AAPL` → 753 real trading days, second same-day fetch confirmed cache-
+served, `SPY` → ETF with null sector/industry, `ZZZNOPEXYZ` → 0 rows, excluded, no
+crash — matches automated coverage exactly.
+**Assumptions logged:** 5 entries in `docs/DECISIONS.md` dated 2026-08-17 —
+`yfinance==1.6.0` pinned after direct live verification (not assumed from memory, given
+SPEC's own warning about this exact library breaking silently across versions); SQLite
+over parquet for the cache and why (live incrementing row-store vs. static snapshot),
+gitignored via the pre-existing bare `.cache` pattern (confirmed with `git check-
+ignore`); hand-rolled retry/backoff instead of a new dependency; the fetch/cache layer
+and the 250-day guard kept as two separate, independently-testable steps; `load_tickers`
+catches per-ticker exceptions so one bad ticker can't crash a batch.
+**Not done:** No wiring into `/api/analyze` or `Meta.price_data_stale`/
+`price_data_as_of` — this issue is scoped to the pure `data/` module only, per its own
+acceptance criteria; per-response staleness/as-of aggregation across multiple tickers is
+a decision for whichever issue wires this in. Sector/industry metadata is fetched and
+cached but not yet consumed by anything (M1's GICS sector grouping is issue #11).
+
