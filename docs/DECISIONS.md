@@ -274,3 +274,84 @@ escalation, not a widened assertion.
 **Chosen:** Copy-only stub on the upload stage ("Canvas redaction lands in #10"); no canvas, no pixel burn-in.
 **Reason:** Keeps #14 minimal and demo-useful without blocking on #10.
 **Reversible:** yes — replace stub with canvas when #10 ships.
+## 2026-08-16 — `anthropic` and `python-multipart` added as new dependencies (issue #4)
+**Ambiguity:** SPEC §5.9 lists `anthropic` in the backend stack but it was never actually
+added to `api/pyproject.toml`; FastAPI's multipart `UploadFile`/`File` parsing separately
+requires `python-multipart` at runtime, which the scaffold also never added.
+**Chosen:** Add both to `[project].dependencies` in `api/pyproject.toml`.
+**Reason:** `anthropic` is the SDK the A1 agent calls Haiku/Sonnet through; `python-
+multipart` is required for `POST /api/extract` to accept an uploaded image at all —
+neither is optional once this issue's acceptance criteria are met.
+**Reversible:** yes — swap SDKs later with a logged reason.
+
+## 2026-08-16 — A1 escalation aggregate is `min(row.confidence)`; empty rows do not escalate
+**Ambiguity:** SPEC §5.2 says "escalate to Sonnet only when self-reported confidence < 0.8
+or schema validation fails," but `ExtractResponse` has no top-level confidence field —
+only per-row `confidence` exists — so an aggregation rule had to be chosen.
+**Chosen:** Escalate iff the minimum confidence across all rows is < 0.8 (any one
+uncertain row is enough), or the model's tool output fails schema validation. A response
+with zero rows has no confidence values to aggregate and is not itself an escalation
+trigger — SPEC names exactly two triggers, and CLAUDE.md rule 6 says take the simpler,
+literal option rather than inventing a third.
+**Reason:** "Any row uncertain → get a second opinion" is the natural reading of a
+per-row confidence signal; declining to invent a third trigger keeps the routing rule
+exactly traceable to SPEC's two named conditions.
+**Reversible:** yes — swap to a different aggregate (e.g. mean, or escalate on empty rows
+too) with a logged reason if eval data (issue #6) shows it matters.
+
+## 2026-08-16 — `model_used` is stamped by application code, never trusted from the model
+**Ambiguity:** `ExtractResponse.model_used` must reflect which model actually produced
+the accepted result; the model itself has no privileged way to know or honestly report
+its own identity inside a tool call.
+**Chosen:** The LLM's tool call target (`ExtractionPayload` in
+`api/src/px/extract/payload.py`) mirrors `ExtractResponse` minus `model_used`. The agent
+sets `model_used` itself to the literal id of whichever API call's output was accepted.
+`ExtractionPayload.rows` reuses the frozen `ExtractRow` model directly (it has no
+model-identity field to begin with), so there is no duplicate row schema to drift.
+**Reason:** Keeps model self-identification out of the model's hands entirely — the same
+spirit as "the LLM never does arithmetic," extended to "the LLM never asserts its own
+provenance."
+**Reversible:** yes.
+
+## 2026-08-16 — Structured extraction via forced Anthropic tool-use, not freeform JSON
+**Ambiguity:** SPEC §5.2 says "strict JSON, Pydantic-validated" without specifying how the
+model is made to emit it.
+**Chosen:** `agent.py` calls the Anthropic Messages API with a single tool
+(`emit_holdings_extraction`, `tool_choice` forced) whose `input_schema` sets
+`additionalProperties: false` at every level; the tool's `input` dict is then validated
+against `ExtractionPayload` (which also inherits `extra="forbid"`). Any parse or
+validation failure is treated identically to a low-confidence result: it triggers
+escalation to Sonnet, and if Sonnet also fails, raises `ExtractionFailedError` — no
+regex-scraped JSON, no partial/best-effort response.
+**Reason:** Forced tool-use is materially more reliable than asking for prose JSON and
+gives two independent layers (JSON Schema, then Pydantic) against a smuggled field like
+an account identifier, matching CLAUDE.md's "strict Pydantic validation" requirement.
+**Reversible:** yes — swap to freeform JSON parsing with a logged reason if tool-use
+proves unreliable in practice.
+
+## 2026-08-16 — Minimal server-side upload guard: magic-byte sniff + 10 MB ceiling
+**Ambiguity:** SPEC §6.3's EXIF-strip/downscale/redaction/MIME-sniffing pipeline is
+explicitly scoped to Lane B's client-side upload flow (issue #10, still open); nothing
+says whether `POST /api/extract` itself should validate anything before spending an API
+call.
+**Chosen:** `main.py` sniffs the first bytes for PNG/JPEG/WEBP magic numbers (rejecting
+anything else with 400) and caps the read at 10 MB (rejecting larger with 413), before
+the bytes ever reach `extract_holdings`. No EXIF stripping, no downscaling, no
+decompression-bomb guard — those remain issue #10's scope.
+**Reason:** A boundary that accepts arbitrary bytes and hands them straight to a paid
+vision API call is a needless cost/abuse surface even in a local-only prototype; the
+10 MB figure is not specified anywhere in SPEC, chosen as a conservative round number
+well above any realistic full-screen screenshot.
+**Reversible:** yes — raise/lower the ceiling or drop the sniff once issue #10's full
+client-side validation makes it redundant.
+
+## 2026-08-16 — Extraction request logging follows the §6.6 allowlist exactly
+**Ambiguity:** §6.6 specifies the allowlist (`request_id`, `duration_ms`, `model_used`,
+`row_count`, `error_code`) at the repo level but no code enforced it yet.
+**Chosen:** `agent.py` logs exactly those five fields via `extra=` on one `logger.info`
+call per request — never the image bytes, raw_label text, or any extracted row content.
+Covered by a regression test (`test_log_line_contains_only_the_allowlisted_fields`) that
+inspects the actual `LogRecord`.
+**Reason:** Establishes the allowlist pattern in code, not just in SPEC prose, before any
+other module starts logging.
+**Reversible:** yes — extend the allowlist later with a logged reason.

@@ -37,6 +37,11 @@ def test_extract_row_rejects_out_of_range_confidence(confidence):
         )
 
 
+def test_extract_row_has_no_account_identifier_field():
+    banned = {"account", "account_number", "account_name", "holder", "owner", "ssn"}
+    assert not (set(ExtractRow.model_fields) & banned)
+
+
 def test_extract_row_rejects_unknown_field():
     with pytest.raises(ValidationError):
         ExtractRow(
