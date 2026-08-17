@@ -75,3 +75,37 @@ only, not a substitute.
 **Tests:** `cd web && npm run build` pass; `npx tsc --noEmit` pass; `npm run lint` pass; design-token greps (no stray hex / radius-shadow / currency) pass against `web/` source.
 **Assumptions logged:** mock extract until /api/extract; redaction stub #10.
 **Not done:** Live extract/analyze; canvas redaction (#10); numeral count-up.
+
+## 2026-08-16 — Issue #4: A1 extraction agent, schema, confidence handling
+**Built:** `api/src/px/extract/{agent.py,payload.py,prompts/a1_extraction.py}` — the A1
+extraction agent. Haiku (`claude-haiku-4-5-20251001`) is called first via a forced
+Anthropic tool-use call (`emit_holdings_extraction`); escalates to Sonnet
+(`claude-sonnet-5`) iff the minimum row confidence is < 0.8 or the tool output fails
+schema validation (JSON Schema `additionalProperties: false` + Pydantic `extra="forbid"`,
+two layers). `model_used` is stamped by application code from the call that actually
+succeeded, never read from the model. If both models fail schema validation,
+`ExtractionFailedError` is raised — no fallback fabrication. Wired `POST /api/extract` in
+`main.py` (multipart upload, magic-byte + 10 MB guard, `Depends`-injected Anthropic
+client so tests never construct a real one). Extended `test_extract_schema.py` with an
+account-identifier field-set regression. Added `tests/conftest.py`'s
+`FakeAnthropicClient` shared by the new `test_extract_agent.py` (routing/escalation/
+logging, 8 tests) and `test_extract_route.py` (route shape/size/content-type/502, 4
+tests).
+**Tests:** `make test` — 70 passed (was 57). `make lint` — ruff clean (api, tests,
+scripts) + web tsc/eslint pass. `make eval` — skipped, `evals/` still not present (owned
+by issue #6, confirmed out of scope for this issue). Manual smoke check: one real
+Haiku call via `.env`'s key against a 1x1 PNG (not committed) — returned zero rows with
+an honest warning rather than fabricating holdings, confirming the tool-use → Pydantic →
+`ExtractResponse` path works end to end against the live API, not just mocks.
+**Assumptions logged:** 6 entries in `docs/DECISIONS.md` dated 2026-08-16 — new deps
+(`anthropic`, `python-multipart`); escalation aggregate is `min(row.confidence)` with
+empty rows not escalating; `model_used` stamped by code not the model, plus reusing
+`ExtractRow` directly in the internal payload; forced tool-use over freeform JSON; 10 MB/
+magic-byte upload guard scoped narrower than issue #10's full client-side pipeline;
+§6.6 logging allowlist enforced in code with a regression test.
+**Not done:** The eval harness and 12 labelled synthetic screenshots (issue #6) — this
+issue's tests all mock the Anthropic client per CI's offline-only policy, so extraction
+*accuracy* (ticker F1, weight MAE, hallucination rate) is unmeasured until #6 lands.
+Resolver-side ticker whitelist validation (issue #5) is separate and unbuilt; A1's
+"never infer an unseen ticker" rule is prompt-level only, as SPEC frames it.
+
