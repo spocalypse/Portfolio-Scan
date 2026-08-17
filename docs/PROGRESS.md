@@ -33,3 +33,33 @@ Format:
 **Tests:** `cd web && npm run build` — pass; `npx tsc --noEmit` — pass; `npm run lint` — pass; `make lint` — ruff + web tsc/eslint pass.
 **Assumptions logged:** next/font/google self-host; keep web/AGENTS.md; type step px sizes.
 **Not done:** Fixture-driven UI (Day 1); upload/redaction; wiring to live API.
+
+## 2026-08-16 — Issue #3: freeze API contract (Pydantic models + metrics fixture)
+**Built:** `api/src/px/schemas/{common,extract,metrics,analyze,samples}.py` — Pydantic v2
+models for all three §5.10 routes, transcribing §5.2 (extraction), §5.5 M1–M6 (metrics,
+with cross-field invariants enforced via `model_validator`), §5.6 (findings), and §6.2
+(weight-only `Holding{ticker, weight}`). `scripts/build_metrics_fixture.py` generates
+`fixtures/metrics.sample.json` from a validated, internally-consistent `AnalyzeResponse`
+instance (10 holdings across 6 sectors, 2 ETFs with pairwise overlap and look-through, one
+excluded holding, both significant/insignificant factor-loading states, 5 findings).
+Extended `make lint`/CI to cover `scripts/`. Route handlers in `main.py` intentionally left
+as a stub — out of scope, wiring lands with issues #4/#19/#21.
+**Tests:** `make test` — 57 passed (was 1: `test_health_returns_ok`); new coverage across
+`test_extract_schema.py`, `test_metrics_schema.py`, `test_analyze_request_schema.py`,
+`test_samples_schema.py`, `test_fixture_contract.py`, and `test_privacy_boundary.py` (18
+tests under `pytest -m privacy`, the marker's first real collection — retires the "exit 5 =
+pass" CI carve-out from 2026-08-16, though that branch is left in place since 0 and 5 both
+still exit 0). `make lint` — ruff clean (api, tests, scripts) + web tsc/eslint pass. `make
+eval` — skipped, no `evals/` yet.
+**Assumptions logged:** 16 entries in `docs/DECISIONS.md` dated 2026-08-16, covering: a
+mid-session branch mis-fork onto a concurrently-committed `web/` branch (caught via
+`git reflog`, corrected before any commit existed); fixture holds full `AnalyzeResponse`
+not bare `metrics{}`; schema package layout; `SectorExposure` unifying M1/M3 per sector;
+`naive_position_count` kept distinct from `effective_position_count`; `significant`
+computed deterministically; no invented staleness thresholds; 2-value `Severity` enum;
+global `extra="forbid"`; `/api/samples` mapped to 3 of 6 §5.8 golden portfolios; script-
+generated fixture; `ExtractResponse`'s full §5.2 field list; hardcoded GICS list and
+uniform [0,1] weight units; construction-time invariant enforcement.
+**Not done:** FastAPI route wiring (issues #4, #19, #21); the full D9 privacy suite with a
+live-run log grep (issue #9) — this issue's privacy test is a structural/model-level proof
+only, not a substitute.

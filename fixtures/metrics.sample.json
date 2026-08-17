@@ -1,0 +1,319 @@
+{
+  "metrics": {
+    "m1_weights": {
+      "position_weights": [
+        {
+          "ticker": "AAPL",
+          "sector": "Information Technology",
+          "capital_weight": 0.13
+        },
+        {
+          "ticker": "MSFT",
+          "sector": "Information Technology",
+          "capital_weight": 0.13
+        },
+        {
+          "ticker": "NVDA",
+          "sector": "Information Technology",
+          "capital_weight": 0.09
+        },
+        {
+          "ticker": "QQQ",
+          "sector": "Information Technology",
+          "capital_weight": 0.11
+        },
+        {
+          "ticker": "VOO",
+          "sector": "Information Technology",
+          "capital_weight": 0.1
+        },
+        {
+          "ticker": "AMZN",
+          "sector": "Consumer Discretionary",
+          "capital_weight": 0.11
+        },
+        {
+          "ticker": "JPM",
+          "sector": "Financials",
+          "capital_weight": 0.09
+        },
+        {
+          "ticker": "JNJ",
+          "sector": "Health Care",
+          "capital_weight": 0.07
+        },
+        {
+          "ticker": "XOM",
+          "sector": "Energy",
+          "capital_weight": 0.07
+        },
+        {
+          "ticker": "PG",
+          "sector": "Consumer Staples",
+          "capital_weight": 0.1
+        }
+      ],
+      "sector_exposure": [
+        {
+          "sector": "Information Technology",
+          "capital_weight": 0.56,
+          "risk_contribution_pct": 0.68
+        },
+        {
+          "sector": "Consumer Discretionary",
+          "capital_weight": 0.11,
+          "risk_contribution_pct": 0.12
+        },
+        {
+          "sector": "Financials",
+          "capital_weight": 0.09,
+          "risk_contribution_pct": 0.08
+        },
+        {
+          "sector": "Health Care",
+          "capital_weight": 0.07,
+          "risk_contribution_pct": 0.04
+        },
+        {
+          "sector": "Energy",
+          "capital_weight": 0.07,
+          "risk_contribution_pct": 0.03
+        },
+        {
+          "sector": "Consumer Staples",
+          "capital_weight": 0.1,
+          "risk_contribution_pct": 0.05
+        }
+      ],
+      "top_sector_concentration": [
+        {
+          "sector": "Information Technology",
+          "capital_weight": 0.56
+        },
+        {
+          "sector": "Consumer Discretionary",
+          "capital_weight": 0.11
+        },
+        {
+          "sector": "Consumer Staples",
+          "capital_weight": 0.1
+        }
+      ],
+      "hhi": 0.10400000000000001,
+      "effective_position_count": 9.615384615384615
+    },
+    "m2_beta": {
+      "beta": 1.15,
+      "r_squared": 0.87
+    },
+    "m3_risk_contribution": {
+      "portfolio_volatility": 0.18,
+      "contributions": [
+        {
+          "ticker": "AAPL",
+          "weight": 0.13,
+          "mcr": 0.22153846153846152,
+          "rc": 0.0288,
+          "rc_pct": 0.16
+        },
+        {
+          "ticker": "MSFT",
+          "weight": 0.13,
+          "mcr": 0.22153846153846152,
+          "rc": 0.0288,
+          "rc_pct": 0.16
+        },
+        {
+          "ticker": "NVDA",
+          "weight": 0.09,
+          "mcr": 0.28,
+          "rc": 0.0252,
+          "rc_pct": 0.14
+        },
+        {
+          "ticker": "QQQ",
+          "weight": 0.11,
+          "mcr": 0.21272727272727274,
+          "rc": 0.0234,
+          "rc_pct": 0.13
+        },
+        {
+          "ticker": "VOO",
+          "weight": 0.1,
+          "mcr": 0.16199999999999998,
+          "rc": 0.0162,
+          "rc_pct": 0.09
+        },
+        {
+          "ticker": "AMZN",
+          "weight": 0.11,
+          "mcr": 0.19636363636363635,
+          "rc": 0.021599999999999998,
+          "rc_pct": 0.12
+        },
+        {
+          "ticker": "JPM",
+          "weight": 0.09,
+          "mcr": 0.16,
+          "rc": 0.0144,
+          "rc_pct": 0.08
+        },
+        {
+          "ticker": "JNJ",
+          "weight": 0.07,
+          "mcr": 0.10285714285714284,
+          "rc": 0.0072,
+          "rc_pct": 0.04
+        },
+        {
+          "ticker": "XOM",
+          "weight": 0.07,
+          "mcr": 0.07714285714285712,
+          "rc": 0.005399999999999999,
+          "rc_pct": 0.03
+        },
+        {
+          "ticker": "PG",
+          "weight": 0.1,
+          "mcr": 0.08999999999999998,
+          "rc": 0.009,
+          "rc_pct": 0.05
+        }
+      ]
+    },
+    "m4_effective_bets": {
+      "effective_number_of_bets": 5.8,
+      "naive_position_count": 10
+    },
+    "m5_factor_tilts": {
+      "loadings": [
+        {
+          "factor": "mkt_rf",
+          "loading": 1.15,
+          "t_stat": 14.2,
+          "significant": true
+        },
+        {
+          "factor": "smb",
+          "loading": -0.08,
+          "t_stat": -0.9,
+          "significant": false
+        },
+        {
+          "factor": "hml",
+          "loading": -0.22,
+          "t_stat": -2.4,
+          "significant": true
+        },
+        {
+          "factor": "rmw",
+          "loading": 0.05,
+          "t_stat": 0.6,
+          "significant": false
+        },
+        {
+          "factor": "cma",
+          "loading": -0.15,
+          "t_stat": -1.8,
+          "significant": false
+        },
+        {
+          "factor": "mom",
+          "loading": 0.1,
+          "t_stat": 1.1,
+          "significant": false
+        }
+      ],
+      "r_squared": 0.78
+    },
+    "m6_etf_look_through": {
+      "snapshot_date": "2026-07-01",
+      "etfs_detected": [
+        "QQQ",
+        "VOO"
+      ],
+      "pairwise_overlap": [
+        {
+          "etf_a": "QQQ",
+          "etf_b": "VOO",
+          "overlap_pct": 0.22
+        }
+      ],
+      "look_through_weights": [
+        {
+          "ticker": "AAPL",
+          "true_weight": 0.1502
+        },
+        {
+          "ticker": "MSFT",
+          "true_weight": 0.1475
+        },
+        {
+          "ticker": "NVDA",
+          "true_weight": 0.1059
+        }
+      ]
+    },
+    "excluded_holdings": [
+      {
+        "ticker": "NEWCO",
+        "reason": "insufficient_price_history",
+        "detail": "IPO'd 30 days ago; fewer than 250 trading days of price history."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "headline": "Technology carries more portfolio risk than its dollar weight suggests",
+      "explanation": "Technology positions account for 56% of capital but 68% of portfolio risk, driven by correlated moves among AAPL, MSFT, NVDA, and the two index funds.",
+      "severity": "notable",
+      "metrics_referenced": [
+        "m1_weights.sector_exposure",
+        "m3_risk_contribution.contributions"
+      ]
+    },
+    {
+      "headline": "Portfolio beta sits at 1.15 with a high R-squared",
+      "explanation": "Over the trailing three years the portfolio moved 1.15x the market on average, and 87% of that movement is explained by the market alone.",
+      "severity": "info",
+      "metrics_referenced": [
+        "m2_beta.beta",
+        "m2_beta.r_squared"
+      ]
+    },
+    {
+      "headline": "5.8 effective bets despite 10 holdings",
+      "explanation": "The effective number of bets is 5.8 versus 10 raw positions, reflecting how correlated the technology names are with each other.",
+      "severity": "notable",
+      "metrics_referenced": [
+        "m4_effective_bets.effective_number_of_bets",
+        "m4_effective_bets.naive_position_count"
+      ]
+    },
+    {
+      "headline": "Market and value loadings are significant; momentum is not",
+      "explanation": "The market and value (HML) loadings clear the significance bar; the momentum, size, profitability, and investment loadings do not and should be read as noise, not tilts.",
+      "severity": "info",
+      "metrics_referenced": [
+        "m5_factor_tilts.loadings"
+      ]
+    },
+    {
+      "headline": "One holding excluded for insufficient price history",
+      "explanation": "NEWCO was excluded from covariance-based metrics because it has fewer than 250 trading days of price history.",
+      "severity": "notable",
+      "metrics_referenced": [
+        "excluded_holdings"
+      ]
+    }
+  ],
+  "meta": {
+    "request_id": "fixture-0001",
+    "computed_at": "2026-08-16T12:00:00Z",
+    "data_window_days": 756,
+    "price_data_as_of": "2026-08-15",
+    "price_data_stale": false,
+    "narrative_model_used": "claude-sonnet-5",
+    "warnings": []
+  }
+}

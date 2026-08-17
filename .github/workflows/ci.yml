@@ -31,7 +31,7 @@ jobs:
           pip install -e "api[dev]"
       - name: Lint
         run: |
-          ruff check api tests
+          ruff check api tests scripts
           if [ -d evals ]; then ruff check evals; fi
       - name: Unit and golden-portfolio tests
         run: pytest -c api/pyproject.toml -v --tb=short
