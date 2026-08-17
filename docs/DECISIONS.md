@@ -473,3 +473,58 @@ require route wiring, matching the same deferred-wiring pattern already used for
 `/api/analyze` itself (issues #19/#21).
 **Reversible:** yes — open a `blocked-needs-human` issue proposing the contract change
 if interactive disambiguation becomes a priority.
+
+## 2026-08-17 — `api/src/px/analytics/returns.py` built now as shared M2-M5 infrastructure
+**Ambiguity:** SPEC §5.5's intro ("Simple daily returns... Annualization factor 252")
+applies to M2 through M5, but issue #12 only asks for M2 specifically.
+**Chosen:** Built `simple_returns` (pct-change on a sorted (date, price) series) and
+`align_returns` (inner-join multiple tickers' return series onto their common dates)
+as their own module now, used by M2 and reused as-is by M3/M4/M5 as those land.
+**Reason:** Every one of M2-M5 needs the exact same date-aligned return matrix; writing
+it once, well-tested, is simpler than four near-duplicate copies (rule 6's "simpler
+option," applied to avoiding drift rather than to scope-narrowing this time). Kept
+decoupled from `data/`'s `PricePoint` type — plain `(date, float)` tuples in, same
+"analytics/ takes its own dataclasses/tuples, not another package's I/O types" pattern
+as M1's `HoldingInput`.
+**Reversible:** yes — split per-metric if the shared version ever needs to diverge.
+
+## 2026-08-17 — `numpy` added as an explicit dependency (issue #12)
+**Ambiguity:** SPEC §5.9 names `numpy` in the backend stack; it was only present as a
+transitive dependency of `pandas` until now, never imported directly.
+**Chosen:** Add `numpy>=1.26.0` to `api/pyproject.toml`'s `dependencies`, now that
+`m2.py` imports it directly for covariance/variance/correlation.
+**Reason:** A transitive dependency isn't a declared one — importing it directly
+without declaring it risks a future pandas version silently dropping/changing that
+transitive pin. Same "pre-approved by SPEC, just not yet declared" situation as
+`anthropic`/`pandas`/`pyarrow` before it.
+**Reversible:** yes.
+
+## 2026-08-17 — β and R² computed via `numpy.cov`/`numpy.corrcoef`, not `statsmodels`
+**Ambiguity:** SPEC §5.9 lists `statsmodels` in the stack (needed for M5's multi-factor
+regression with t-statistics), but doesn't mandate its use for M2's single-factor beta.
+**Chosen:** `compute_beta` uses `cov(r_p, r_m) / var(r_m)` directly and `R² =
+corr(r_p, r_m)²` — the exact closed-form identity for simple (one-regressor,
+with-intercept) OLS R², verified against real SPY/AAPL data (SPY vs itself: β=1.0,
+R²=1.0 exactly; AAPL vs SPY: β≈1.08, R²≈0.38, both realistic).
+**Reason:** `statsmodels.OLS` would be correct too but is unnecessary machinery for a
+two-number result `numpy` computes directly and more simply — reserved for M5 where an
+actual multi-factor regression with per-coefficient t-statistics is unavoidable.
+**Reversible:** yes — switch to `statsmodels.OLS` with a logged reason if M2 ever needs
+a coefficient standard error or similar that the closed form doesn't give directly.
+
+## 2026-08-17 — M2's golden-portfolio tests use synthetic, not live, return series
+**Ambiguity:** SPEC §5.8's golden portfolios (100% SPY, 50/50 SPY/SHV) are named by
+real ticker, and issue #8's data layer could fetch them for real — but #8 isn't merged
+to `main` yet, and CI runs fully offline regardless (no test in this repo has ever hit
+a live network call).
+**Chosen:** `test_m2.py` constructs a seeded synthetic market-return series and proves
+the two SPEC-named cases mathematically: portfolio-equals-market gives β=1.0 exactly
+(not just within tolerance); a 50/50 mix with a zero-variance "SHV" proxy gives β=0.5
+exactly. Real-data validation (SPY vs itself, AAPL vs SPY) was run manually outside the
+suite as a one-off sanity check, not committed as a test.
+**Reason:** Same discipline as every other module this session (`extract`, `resolve`,
+`data`, M1) — formula correctness is proven against known-answer synthetic inputs;
+live data is for one-off human verification, never the automated suite. Also sidesteps
+any ordering dependency on issue #8's merge.
+**Reversible:** yes — add real-fixture-backed integration tests once #8 is on `main`
+and a golden fixture of its cached prices exists, with a logged reason.

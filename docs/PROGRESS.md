@@ -148,3 +148,33 @@ contract — a contract change is an escalation, not this issue's call to make).
 issue builds `/api/analyze` (#19/#21). No interactive disambiguation UI/endpoint for the
 `ambiguous` case — logged as a deferred contract question, not silently dropped.
 
+## 2026-08-17 — Issue #12: analytics M2 portfolio beta with R²
+**Built:** `api/src/px/analytics/{returns.py,m2.py}` — pure, no I/O, no network.
+`returns.py` (new shared infrastructure, reused by M3-M5 as they land): `simple_returns`
+(pct-change on a sorted `(date, price)` series) and `align_returns` (inner-joins
+multiple tickers' return series onto their common dates, so a holiday gap or late
+listing never desyncs the matrix). `m2.py`: `compute_portfolio_returns` (`r_p,t =
+Σ w_i · r_i,t` via a `numpy` weighted matrix product) and `compute_beta` (`β =
+cov(r_p, r_m) / var(r_m)`, `R² = corr(r_p, r_m)²` — the closed-form identity for
+simple OLS R², not a full regression).
+**Tests:** `make test` — 112 passed (was 103): `test_returns.py` (4 tests) and
+`test_m2.py` (5 tests — 100% SPY β=1.0 exactly + R²≥0.98, 50/50 SPY/SHV β=0.5 exactly
+via a zero-variance synthetic SHV proxy, uncorrelated series give R²<0.05, weighted-sum
+correctness, an inverse-scaled series gives β=-1.0 as a sign sanity check). All golden
+tests use seeded synthetic return series, not live data — same offline-only testing
+discipline as every other module this session. `make lint` — ruff clean (api, tests,
+scripts) + web tsc/eslint pass. `make eval` — unaffected no-op. Manual smoke check
+against the live API (yfinance called directly, bypassing the not-yet-merged `data/`
+module): real SPY vs itself → β=1.0, R²=1.0 exactly; real AAPL vs SPY over 752 aligned
+trading days → β≈1.08, R²≈0.38 — both realistic, confirming the formulas and the
+`align_returns` date-join work correctly end to end against real market data.
+**Assumptions logged:** 4 entries in `docs/DECISIONS.md` dated 2026-08-17 —
+`returns.py` built now as shared M2-M5 infrastructure, decoupled from `data/`'s
+`PricePoint` type; `numpy` promoted from transitive to an explicit declared dependency;
+closed-form `cov`/`corrcoef` chosen over `statsmodels.OLS` for M2 specifically (M5 will
+need the latter); golden-portfolio tests use synthetic series rather than depending on
+issue #8's merge order, with live-data validation done manually instead.
+**Not done:** No wiring of M2's output into the frozen `Metrics`/`M2Beta` Pydantic
+object — same deferred-assembly reasoning as M1. No use of the real cached price data
+from issue #8 in the automated suite (by design — see decisions).
+
