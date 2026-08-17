@@ -17,7 +17,7 @@ lint:
 	ruff check api tests scripts
 	@if [ -d evals ]; then ruff check evals; fi
 	@if [ -f web/package.json ]; then \
-		cd web && npx tsc --noEmit && npm run lint; \
+		cd web && npx tsc --noEmit && npm run lint && npm test; \
 	fi
 
 dev:
