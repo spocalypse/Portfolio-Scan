@@ -209,3 +209,18 @@ acceptance criteria; per-response staleness/as-of aggregation across multiple ti
 a decision for whichever issue wires this in. Sector/industry metadata is fetched and
 cached but not yet consumed by anything (M1's GICS sector grouping is issue #11).
 
+
+## 2026-08-16 — UI revamp Phase 1: instrument readout charts + holdings table
+**Built:** `CountUp` (one-shot numeral spin-up, respects `prefers-reduced-motion`);
+`SectorDualBarChart` SVG (capital vs risk, sorted by |Δ|); `HoldingsTable` +
+`buildHoldingsRows` (ticker/sector/capital/risk/Δ); elevated `DivergenceBar` `lg` for
+largest sector divergence; `InstrumentReadout` re-ordered (primary finding → headline
+CountUp → sector instrument → holdings table → remaining panels); AppShell max-width
+1040px; plan/skill/subagent stubs under `docs/UI-REVAMP-PLAN.md`,
+`.cursor/skills/instrument-panel-ui/`, `.claude/agents/ui-instrument-reviewer.md`.
+**Tests:** `make test` — 106 passed. `cd web && npm test` — 7 passed (image-prepare +
+holdings join). `make lint` — ruff + tsc + eslint + web tests clean. `npm run build` —
+pass. Design-token greps clean.
+**Assumptions logged:** Phase 1 inside §5.11 / SVG-only; CountUp rAF deferral for lint.
+**Not done:** Phase 2 factor-tilt chart / ETF table polish; Phase 3 upload-stage polish;
+live analyze wiring (#21).

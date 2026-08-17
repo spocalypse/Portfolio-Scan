@@ -1,6 +1,12 @@
-import type { CSSProperties } from "react";
+"use client";
 
+import { useCallback, type CSSProperties, type ReactNode } from "react";
+
+import { CountUp } from "@/components/CountUp";
 import { DivergenceBar } from "@/components/DivergenceBar";
+import { buildHoldingsRows } from "@/lib/holdings";
+import { HoldingsTable } from "@/components/HoldingsTable";
+import { SectorDualBarChart } from "@/components/SectorDualBarChart";
 import { formatNum, formatPct, formatTimestamp } from "@/lib/format";
 import type { AnalyzeResponse } from "@/lib/types";
 
@@ -11,16 +17,6 @@ const PANEL: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "16px",
-};
-
-const ROW: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1.4fr) repeat(auto-fit, minmax(72px, 1fr))",
-  gap: "8px 16px",
-  alignItems: "baseline",
-  borderTop: "1px solid var(--rule)",
-  paddingTop: "8px",
-  paddingBottom: "8px",
 };
 
 const LABEL: CSSProperties = {
@@ -49,9 +45,21 @@ export function InstrumentReadout({
   const m5 = metrics.m5_factor_tilts;
   const m6 = metrics.m6_etf_look_through;
 
+  const primaryFinding = findings[0] ?? null;
+  const holdingsRows = buildHoldingsRows(m1.position_weights, m3.contributions);
+  const topDivergence = [...m1.sector_exposure].sort(
+    (a, b) =>
+      Math.abs(b.risk_contribution_pct - b.capital_weight) -
+      Math.abs(a.risk_contribution_pct - a.capital_weight),
+  )[0];
+
+  const fmtNum1 = useCallback((n: number) => formatNum(n, 1), []);
+  const fmtNum2 = useCallback((n: number) => formatNum(n, 2), []);
+  const fmtPct0 = useCallback((n: number) => formatPct(n, 0), []);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-      <header style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "32px" }}>
+      <header style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "24px" }}>
         <p className="eyebrow">Portfolio X-Ray</p>
         <h1
           style={{
@@ -64,10 +72,32 @@ export function InstrumentReadout({
         >
           Instrument readout
         </h1>
-        <p style={{ margin: 0, fontSize: "var(--step-3)", color: "var(--muted)", maxWidth: "36em" }}>
+        <p style={{ margin: 0, fontSize: "var(--step-3)", color: "var(--muted)", maxWidth: "40em" }}>
           {fixtureNotice}
         </p>
       </header>
+
+      {primaryFinding ? (
+        <section style={{ ...PANEL, paddingTop: "16px" }} aria-label="Primary finding">
+          <p className="eyebrow" style={{ color: "var(--text)" }}>
+            {primaryFinding.severity} · primary
+          </p>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "var(--step-4)",
+              fontWeight: 500,
+              lineHeight: 1.25,
+              maxWidth: "28em",
+            }}
+          >
+            {primaryFinding.headline}
+          </h2>
+          <p style={{ margin: 0, fontSize: "var(--step-2)", color: "var(--muted)", lineHeight: 1.5, maxWidth: "42em" }}>
+            {primaryFinding.explanation}
+          </p>
+        </section>
+      ) : null}
 
       <section style={PANEL} aria-label="Headline instruments">
         <p className="eyebrow">Headline</p>
@@ -80,32 +110,136 @@ export function InstrumentReadout({
         >
           <MetricCell
             label="Effective bets"
-            value={formatNum(m4.effective_number_of_bets, 1)}
             hint={`vs ${m4.naive_position_count} positions`}
             hero
-          />
-          <MetricCell
-            label="Portfolio beta"
-            value={formatNum(m2.beta, 2)}
-            hint={`R² ${formatPct(m2.r_squared, 0)}`}
-            hero
-          />
-          <MetricCell
-            label="Portfolio vol"
-            value={formatPct(m3.portfolio_volatility, 0)}
-            hint="annualized"
-            hero
-          />
-          <MetricCell
-            label="HHI / eff. positions"
-            value={formatNum(m1.hhi, 3)}
-            hint={`${formatNum(m1.effective_position_count, 1)} by weight`}
-          />
+          >
+            <CountUp value={m4.effective_number_of_bets} format={fmtNum1} />
+          </MetricCell>
+          <MetricCell label="Portfolio beta" hint={`R² ${formatPct(m2.r_squared, 0)}`} hero>
+            <CountUp value={m2.beta} format={fmtNum2} />
+          </MetricCell>
+          <MetricCell label="Portfolio vol" hint="annualized" hero>
+            <CountUp value={m3.portfolio_volatility} format={fmtPct0} />
+          </MetricCell>
+          <MetricCell label="HHI / eff. positions" hint={`${formatNum(m1.effective_position_count, 1)} by weight`}>
+            <span className="numeral">{formatNum(m1.hhi, 3)}</span>
+          </MetricCell>
         </div>
       </section>
 
+      <section style={PANEL} aria-label="Sector capital versus risk">
+        <p className="eyebrow">Sector capital vs risk</p>
+        <p style={{ margin: 0, fontSize: "var(--step-2)", color: "var(--muted)", maxWidth: "42em" }}>
+          <span style={{ color: "var(--capital)" }}>Capital</span> is what you own.{" "}
+          <span style={{ color: "var(--risk)" }}>Risk</span> is contribution to portfolio
+          volatility. The amber band is divergence — the product&apos;s signature glyph.
+        </p>
+        <div
+          style={{
+            display: "flex",
+            gap: "24px",
+            flexWrap: "wrap",
+            fontSize: "var(--step-1)",
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "var(--muted)",
+          }}
+        >
+          <span>
+            <span style={{ color: "var(--capital)" }}>■</span> Capital weight
+          </span>
+          <span>
+            <span style={{ color: "var(--risk)" }}>■</span> Risk contribution
+          </span>
+        </div>
+
+        {topDivergence ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              borderTop: "1px solid var(--rule)",
+              paddingTop: "16px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "16px",
+                flexWrap: "wrap",
+                alignItems: "baseline",
+              }}
+            >
+              <span style={{ fontSize: "var(--step-3)" }}>
+                Largest divergence · {topDivergence.sector}
+              </span>
+              <span className="numeral" style={{ fontSize: "var(--step-3)", color: "var(--muted)" }}>
+                <span style={{ color: "var(--capital)" }}>{formatPct(topDivergence.capital_weight)}</span>
+                {" / "}
+                <span style={{ color: "var(--risk)" }}>
+                  {formatPct(topDivergence.risk_contribution_pct)}
+                </span>
+                {" · Δ "}
+                {formatPct(topDivergence.risk_contribution_pct - topDivergence.capital_weight)}
+              </span>
+            </div>
+            <DivergenceBar
+              capitalWeight={topDivergence.capital_weight}
+              riskContributionPct={topDivergence.risk_contribution_pct}
+              size="lg"
+            />
+          </div>
+        ) : null}
+
+        <SectorDualBarChart rows={m1.sector_exposure} />
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+          {m1.sector_exposure.map((row) => (
+            <div
+              key={row.sector}
+              style={{
+                borderTop: "1px solid var(--rule)",
+                paddingTop: "12px",
+                paddingBottom: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "16px",
+                  flexWrap: "wrap",
+                  alignItems: "baseline",
+                }}
+              >
+                <span style={{ fontSize: "var(--step-2)" }}>{row.sector}</span>
+                <span className="numeral" style={{ fontSize: "var(--step-2)", color: "var(--muted)" }}>
+                  <span style={{ color: "var(--capital)" }}>{formatPct(row.capital_weight)}</span>
+                  {" / "}
+                  <span style={{ color: "var(--risk)" }}>{formatPct(row.risk_contribution_pct)}</span>
+                </span>
+              </div>
+              <DivergenceBar
+                capitalWeight={row.capital_weight}
+                riskContributionPct={row.risk_contribution_pct}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={PANEL} aria-label="Holdings">
+        <p className="eyebrow">Holdings</p>
+        <HoldingsTable rows={holdingsRows} />
+      </section>
+
       <section style={PANEL} aria-label="Findings">
-        <p className="eyebrow">Findings</p>
+        <p className="eyebrow">All findings</p>
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0" }}>
           {findings.map((finding) => (
             <li
@@ -138,74 +272,14 @@ export function InstrumentReadout({
         </ul>
       </section>
 
-      <section style={PANEL} aria-label="Sector capital versus risk">
-        <p className="eyebrow">Sector capital vs risk</p>
-        <p style={{ margin: 0, fontSize: "var(--step-2)", color: "var(--muted)" }}>
-          Blue is capital weight. Amber is risk contribution. The filled band is the divergence.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-          {m1.sector_exposure.map((row) => (
-            <div
-              key={row.sector}
-              style={{
-                borderTop: "1px solid var(--rule)",
-                paddingTop: "16px",
-                paddingBottom: "16px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "16px",
-                  flexWrap: "wrap",
-                  alignItems: "baseline",
-                }}
-              >
-                <span style={{ fontSize: "var(--step-2)" }}>{row.sector}</span>
-                <span className="numeral" style={{ fontSize: "var(--step-2)", color: "var(--muted)" }}>
-                  <span style={{ color: "var(--capital)" }}>{formatPct(row.capital_weight)}</span>
-                  {" / "}
-                  <span style={{ color: "var(--risk)" }}>{formatPct(row.risk_contribution_pct)}</span>
-                </span>
-              </div>
-              <DivergenceBar
-                capitalWeight={row.capital_weight}
-                riskContributionPct={row.risk_contribution_pct}
-              />
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section style={PANEL} aria-label="Top sector concentration">
         <p className="eyebrow">Top sector concentration</p>
         {m1.top_sector_concentration.map((row) => (
-          <div key={row.sector} style={ROW}>
-            <span style={{ fontSize: "var(--step-2)" }}>{row.sector}</span>
-            <span className="numeral" style={{ fontSize: "var(--step-4)", textAlign: "right" }}>
-              {formatPct(row.capital_weight)}
-            </span>
-          </div>
-        ))}
-      </section>
-
-      <section style={PANEL} aria-label="Position weights">
-        <p className="eyebrow">Position weights</p>
-        <div style={{ ...ROW, borderTop: "none", paddingTop: 0 }}>
-          <p style={LABEL}>Ticker</p>
-          <p style={{ ...LABEL, textAlign: "right" }}>Sector</p>
-          <p style={{ ...LABEL, textAlign: "right" }}>Weight</p>
-        </div>
-        {m1.position_weights.map((row) => (
           <div
-            key={row.ticker}
+            key={row.sector}
             style={{
               display: "grid",
-              gridTemplateColumns: "88px 1fr 88px",
+              gridTemplateColumns: "minmax(0, 1.4fr) 88px",
               gap: "8px 16px",
               alignItems: "baseline",
               borderTop: "1px solid var(--rule)",
@@ -213,11 +287,8 @@ export function InstrumentReadout({
               paddingBottom: "8px",
             }}
           >
-            <span className="numeral" style={{ fontSize: "var(--step-3)" }}>
-              {row.ticker}
-            </span>
-            <span style={{ fontSize: "var(--step-2)", color: "var(--muted)" }}>{row.sector}</span>
-            <span className="numeral" style={{ fontSize: "var(--step-3)", textAlign: "right" }}>
+            <span style={{ fontSize: "var(--step-2)" }}>{row.sector}</span>
+            <span className="numeral" style={{ fontSize: "var(--step-4)", textAlign: "right" }}>
               {formatPct(row.capital_weight)}
             </span>
           </div>
@@ -451,14 +522,14 @@ export function InstrumentReadout({
 
 function MetricCell({
   label,
-  value,
   hint,
   hero = false,
+  children,
 }: {
   label: string;
-  value: string;
   hint?: string;
   hero?: boolean;
+  children: ReactNode;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -471,7 +542,7 @@ function MetricCell({
           lineHeight: 1,
         }}
       >
-        {value}
+        {children}
       </p>
       {hint ? (
         <p style={{ margin: 0, fontSize: "var(--step-1)", color: "var(--muted)" }}>{hint}</p>
