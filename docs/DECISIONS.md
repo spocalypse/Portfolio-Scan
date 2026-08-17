@@ -474,6 +474,42 @@ require route wiring, matching the same deferred-wiring pattern already used for
 **Reversible:** yes — open a `blocked-needs-human` issue proposing the contract change
 if interactive disambiguation becomes a priority.
 
+## 2026-08-16 — Client prepare uses canvas JPEG; no new npm deps for #10
+**Ambiguity:** SPEC §6.3 needs EXIF strip, ~1600px downscale, burned redaction, MIME
+sniff, size ceiling, decompression-bomb guard — libraries like `exifr` or
+`browser-image-compression` would do pieces of this.
+**Chosen:** Browser canvas only (`createImageBitmap` → draw → `getImageData` burn →
+`toBlob('image/jpeg')`). Shared constants with the API's 10 MB ceiling. Long-edge
+target 1600px. Decoded pixel cap 40e6. Redaction rects stored in natural-image space and
+scaled with the downscale factor before burn.
+**Reason:** No new dependency (CLAUDE.md §7); canvas re-encode is the SPEC-named EXIF
+strip mechanism; JPEG output is smaller for the eventual Anthropic upload path.
+**Reversible:** yes — swap encoder or add a dep with a logged reason if WebP retention
+or quality becomes an issue.
+
+## 2026-08-16 — Frontend unit tests via Node strip-types; CI Node 22
+**Ambiguity:** Issue #10 acceptance requires a byte-level assertion that redacted pixels
+are black in the buffer, not a UI overlay. The web package had no test runner; CI was on
+Node 20.
+**Chosen:** Pure helpers in `web/lib/image-prepare.ts` tested with Node's built-in
+`node:test` + `--experimental-strip-types` (no vitest/jest). Frontend CI and local
+`make lint` run `npm test`. Bump frontend workflow Node to 22 so strip-types is
+available without a new dependency.
+**Reason:** Meets the byte-level acceptance criterion without adding a test framework
+dependency; Node 22 is LTS-adjacent and already below the local toolchain (v26).
+**Reversible:** yes — introduce vitest later if browser-level canvas tests become
+necessary.
+
+## 2026-08-16 — Redact is its own AppShell stage before mock extract
+**Ambiguity:** Whether to fold redaction into the dropzone or insert a stage between
+upload and confirm.
+**Chosen:** Stages are `upload → redact → confirm → readout`. Continue on redact always
+runs `prepareScreenshot` (even with zero boxes) so EXIF strip + downscale always apply
+before the mock extract path. Live `/api/extract` wiring remains #21.
+**Reason:** Matches SPEC §6.3 order (strip/downscale/redact/validate before anything
+leaves the browser) and keeps the privacy control demonstrable as its own screen.
+**Reversible:** yes.
+
 ## 2026-08-17 — `yfinance==1.6.0` pinned exactly (issue #8)
 **Ambiguity:** SPEC §5.9 names `yfinance` and §5.4 warns "pin the version; it breaks
 without warning," without naming a specific version. Latest at build time is 1.6.0, a

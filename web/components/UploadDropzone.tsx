@@ -2,6 +2,8 @@
 
 import { useId, useRef, useState, type CSSProperties, type DragEvent } from "react";
 
+import { MAX_UPLOAD_BYTES } from "@/lib/image-prepare";
+
 const ZONE: CSSProperties = {
   border: "1px solid var(--rule)",
   backgroundColor: "var(--panel)",
@@ -28,7 +30,16 @@ export function UploadDropzone({ onFileAccepted }: UploadDropzoneProps) {
   function acceptFile(file: File | undefined) {
     setError(null);
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    if (file.size <= 0) {
+      setError("Couldn't read that image — try a full-screen capture of the holdings list.");
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError("Image is too large (max 10 MB). Try a smaller capture.");
+      return;
+    }
+    // Full MIME sniff + EXIF/downscale/redaction burn happen on the redact stage.
+    if (file.type && !file.type.startsWith("image/")) {
       setError("Choose an image file (PNG, JPEG, or WebP).");
       return;
     }
@@ -57,8 +68,8 @@ export function UploadDropzone({ onFileAccepted }: UploadDropzoneProps) {
           Upload
         </h1>
         <p style={{ margin: 0, fontSize: "var(--step-3)", color: "var(--muted)", maxWidth: "36em" }}>
-          Drop a screenshot of your holdings. The image stays in memory only — never written to
-          disk or localStorage. Canvas redaction lands in #10.
+          Drop a screenshot of your holdings. Next you can redact regions; the prepared image stays
+          in memory only — never written to disk or localStorage.
         </p>
       </header>
 

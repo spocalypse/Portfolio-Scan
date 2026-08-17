@@ -4,12 +4,13 @@ import { useState } from "react";
 
 import { ConfirmHoldingsTable } from "@/components/ConfirmHoldingsTable";
 import { InstrumentReadout } from "@/components/InstrumentReadout";
+import { RedactStage } from "@/components/RedactStage";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { extractToConfirmRows, recomputeWeights } from "@/lib/confirm-rows";
 import type { ConfirmRow, ExtractResponse } from "@/lib/extract-types";
 import type { AnalyzeResponse } from "@/lib/types";
 
-type Stage = "upload" | "confirm" | "readout";
+type Stage = "upload" | "redact" | "confirm" | "readout";
 
 type AppShellProps = {
   analyzeFixture: AnalyzeResponse;
@@ -18,15 +19,24 @@ type AppShellProps = {
 
 export function AppShell({ analyzeFixture, extractSample }: AppShellProps) {
   const [stage, setStage] = useState<Stage>("upload");
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [preparedFile, setPreparedFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ConfirmRow[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [brokerageGuess, setBrokerageGuess] = useState<string | null>(null);
 
   function handleFileAccepted(file: File) {
-    // Image kept in React state only — never disk / localStorage.
-    setImageFile(file);
-    // Mock extract until /api/extract is wired (#4).
+    // Raw pick stays in memory only until prepare replaces it.
+    setSourceFile(file);
+    setPreparedFile(null);
+    setStage("redact");
+  }
+
+  function handlePrepared(file: File) {
+    // Prepared JPEG (EXIF stripped, downscaled, redactions burned) — never disk / localStorage.
+    setPreparedFile(file);
+    setSourceFile(null);
+    // Mock extract until live /api/extract wiring (#21).
     setRows(extractToConfirmRows(extractSample));
     setWarnings(extractSample.warnings);
     setBrokerageGuess(extractSample.brokerage_guess);
@@ -37,8 +47,9 @@ export function AppShell({ analyzeFixture, extractSample }: AppShellProps) {
     setRows(recomputeWeights(next));
   }
 
-  function handleBack() {
-    setImageFile(null);
+  function handleBackToUpload() {
+    setSourceFile(null);
+    setPreparedFile(null);
     setRows([]);
     setWarnings([]);
     setBrokerageGuess(null);
@@ -48,7 +59,7 @@ export function AppShell({ analyzeFixture, extractSample }: AppShellProps) {
   function handleAnalyze() {
     // Demo path: confirmed holdings stay client-side as {ticker, weight} only.
     // Readout still uses the metrics fixture until live analyze exists.
-    if (!imageFile || rows.length === 0) return;
+    if (!preparedFile || rows.length === 0) return;
     setStage("readout");
   }
 
@@ -65,6 +76,14 @@ export function AppShell({ analyzeFixture, extractSample }: AppShellProps) {
     >
       {stage === "upload" ? <UploadDropzone onFileAccepted={handleFileAccepted} /> : null}
 
+      {stage === "redact" && sourceFile ? (
+        <RedactStage
+          sourceFile={sourceFile}
+          onPrepared={handlePrepared}
+          onBack={handleBackToUpload}
+        />
+      ) : null}
+
       {stage === "confirm" ? (
         <ConfirmHoldingsTable
           rows={rows}
@@ -72,7 +91,7 @@ export function AppShell({ analyzeFixture, extractSample }: AppShellProps) {
           brokerageGuess={brokerageGuess}
           onChange={handleRowsChange}
           onAnalyze={handleAnalyze}
-          onBack={handleBack}
+          onBack={handleBackToUpload}
         />
       ) : null}
 
@@ -80,7 +99,7 @@ export function AppShell({ analyzeFixture, extractSample }: AppShellProps) {
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <button
             type="button"
-            onClick={handleBack}
+            onClick={handleBackToUpload}
             style={{
               alignSelf: "flex-start",
               margin: 0,
