@@ -1,0 +1,46 @@
+{
+  "rows": [
+    {
+      "raw_label": "AAPL Apple Inc",
+      "ticker_guess": "AAPL",
+      "quantity": 40.0,
+      "market_value": 7200.0,
+      "confidence": 0.96
+    },
+    {
+      "raw_label": "MSFT Microsoft",
+      "ticker_guess": "MSFT",
+      "quantity": 18.0,
+      "market_value": 6480.0,
+      "confidence": 0.94
+    },
+    {
+      "raw_label": "BRK.B Berkshire",
+      "ticker_guess": "BRK.B",
+      "quantity": 12.0,
+      "market_value": 4800.0,
+      "confidence": 0.88
+    },
+    {
+      "raw_label": "??? 25 sh",
+      "ticker_guess": null,
+      "quantity": 25.0,
+      "market_value": 3120.0,
+      "confidence": 0.0
+    },
+    {
+      "raw_label": "VOO Vanguard S&P 500",
+      "ticker_guess": "VOO",
+      "quantity": 8.0,
+      "market_value": 3600.0,
+      "confidence": 0.91
+    }
+  ],
+  "total_value": 25200.0,
+  "brokerage_guess": "Fidelity",
+  "warnings": [
+    "One row could not be resolved from the screenshot label; confirm ticker and exchange before analyzing.",
+    "Redaction canvas arrives in #10 — crop identifiers before upload in production."
+  ],
+  "model_used": "mock-extract-fixture"
+}

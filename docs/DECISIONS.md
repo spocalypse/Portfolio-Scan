@@ -262,3 +262,15 @@ escalation, not a widened assertion.
 **Chosen:** Add `!web/lib/` exception; keep helpers at `web/lib/{types,format,load-fixture}.ts`.
 **Reason:** Matches Next/App Router convention (`@/lib/...`); narrower than renaming the folder.
 **Reversible:** yes — rename to `web/readout/` and drop the exception if preferred.
+
+## 2026-08-16 — Mock extract fixture until /api/extract is wired
+**Ambiguity:** Issue #14 needs upload → confirm before readout, but Lane A extract (#4) is not merged; live Anthropic is out of scope.
+**Chosen:** On file select, load `fixtures/extract.sample.json` (ExtractResponse shape from `api/src/px/schemas/extract.py`, including `model_used`) via the same server-side fs pattern as metrics. Image `File` stays in React state only. Confirm edits derive capital weights from market_value shares; Analyze advances to the existing metrics fixture readout (honest eyebrow). Exchange is confirm-UI-only (NYSE/NASDAQ/AMEX/Other), not an ExtractResponse field.
+**Reason:** Unblocks the D3 demo path without inventing API fields or calling Anthropic; dollars never enter the readout stage.
+**Reversible:** yes — swap mock load for `POST /api/extract` and fixture readout for live analyze when #4/#21 land.
+
+## 2026-08-16 — Stub redaction notice on upload; full canvas is #10
+**Ambiguity:** SPEC §6.3 lists manual redaction before upload; issue #14 marks full canvas redaction out of scope.
+**Chosen:** Copy-only stub on the upload stage ("Canvas redaction lands in #10"); no canvas, no pixel burn-in.
+**Reason:** Keeps #14 minimal and demo-useful without blocking on #10.
+**Reversible:** yes — replace stub with canvas when #10 ships.

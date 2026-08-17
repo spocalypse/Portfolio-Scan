@@ -69,3 +69,9 @@ only, not a substitute.
 **Tests:** `cd web && npm run build` pass; `npx tsc --noEmit` pass; `npm run lint` pass; design-token greps (no stray hex / radius-shadow / currency) pass against `web/` source.
 **Assumptions logged:** fs load of root fixture; defer count-up motion.
 **Not done:** Live API wiring; upload/redaction; numeral count-up motion; client confirm-and-edit table.
+
+## 2026-08-16 — Issue #14: upload + confirm-and-edit before readout
+**Built:** Client stage flow upload → confirm → readout. `UploadDropzone`, `ConfirmHoldingsTable` (editable ticker/qty/value, derived weight, confidence, exchange dropdown, remove row, warnings), `InstrumentReadout` extracted from the static page, `AppShell` orchestrator. Mock `fixtures/extract.sample.json` (clear + confidence:0 rows). Image in React state only; Analyze still shows metrics fixture with honest notice. Redaction stubbed to #10.
+**Tests:** `cd web && npm run build` pass; `npx tsc --noEmit` pass; `npm run lint` pass; design-token greps (no stray hex / radius-shadow / currency) pass against `web/` source.
+**Assumptions logged:** mock extract until /api/extract; redaction stub #10.
+**Not done:** Live extract/analyze; canvas redaction (#10); numeral count-up.
